@@ -9,15 +9,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: master
       - name: Update build.zig.zon version
         run: |
           cd bindings/zig
           VERSION="${{ github.ref_name }}"
           sed -i "s/\.version = \".*\"/.version = \"$VERSION\"/" build.zig.zon
-      - name: Tag Zig package
+      - name: Commit and tag
         run: |
           cd bindings/zig
           git add build.zig.zon
           git commit -m "Release ${{ github.ref_name }}"
           git tag zig/v${{ github.ref_name }}
-          git push origin zig/v${{ github.ref_name }}
+          git push origin master zig/v${{ github.ref_name }}

@@ -1,6 +1,14 @@
 # wlite
 
-A tiny SQLite schema and migration toolkit. CLI and language bindings for libwlite.
+Declarative SQLite schema management, without the overhead.
+
+## Why wlite exists
+
+[dbwarden](https://github.com/dbwarden-org/dbwarden) is a full-featured declarative schema compiler for SQLAlchemy. It is powerful, but it carries the weight of the Python ecosystem: SQLAlchemy, async drivers, plugin systems, multi-database orchestration.
+
+Not every project needs that. Embedded applications, CLI tools, TUI interfaces, and small services often just need SQLite with proper schema management. wlite exists to fill that gap: the same declarative philosophy as dbwarden, stripped down to what SQLite and C can do alone.
+
+**wlite is dbwarden for projects that do not need the dbwarden machinery.**
 
 ## What It Does
 
@@ -8,13 +16,9 @@ wlite provides a command-line tool and bindings for C++, Rust, Python, Go, C#, a
 
 ## Philosophy
 
-wlite follows the [dbwarden](https://github.com/dbwarden-org/dbwarden) philosophy: **your schema is the source of truth, not migration scripts**. Just as dbwarden compiles SQLAlchemy models into reviewable SQL, wlite compiles `.wlite` models into SQLite migrations. No imperative change scripts to write, maintain, or debug.
+wlite follows the dbwarden principle: **your schema is the source of truth, not migration scripts**. You declare the tables, fields, and constraints you want in a `.wlite` model file. The tooling computes the diff against the live database and generates plain SQL to close the gap.
 
-The SQLite3 backend in dbwarden (table rebuilds, collapse logic, type normalization, default handling, constraint diffing) is the reference implementation. libwlite mirrors it exactly, and a CI workflow enforces behavioral sync between the two projects.
-
-## Relationship to dbwarden
-
-wlite exists because dbwarden's SQLite3 backend is too useful to keep locked inside a Python project. The algorithms that make dbwarden's SQLite support production-grade are implemented in libwlite as a standalone C library. When dbwarden improves how it handles a type, default, or constraint, those improvements flow into libwlite automatically.
+The SQLite3 backend in dbwarden (table rebuilds, collapse logic, type normalization, default handling, constraint diffing) is the reference implementation. libwlite mirrors it exactly. A CI workflow enforces behavioral sync between the two projects.
 
 ## Quick Start
 
@@ -27,10 +31,25 @@ cd ../wlite && make
 
 # Create a model
 cat > app.wlite << 'EOF'
+model_config {
+    name "my_application"
+    version 1
+}
+
 model User {
     table "users"
-    field id integer { primary_key autoincrement }
-    field name text { not_null }
+
+    field id integer {
+        primary_key
+        autoincrement
+    }
+
+    field username text {
+        not_null
+        unique
+    }
+
+    field email text
 }
 EOF
 
@@ -77,6 +96,25 @@ fn main() -> wlite::Result<()> {
 auto model = wlite::Model::load("app.wlite");
 auto db = wlite::Database::open("app.db");
 db.migrate(model);
+```
+
+### C
+
+```c
+#include <wlite/wlite.h>
+
+int main(void) {
+    wlite_model *model = NULL;
+    wlite_db *db = NULL;
+
+    wlite_model_load_file("app.wlite", &model);
+    wlite_open("app.db", &db);
+    wlite_migrate(db, model);
+
+    wlite_close(db);
+    wlite_model_free(model);
+    return 0;
+}
 ```
 
 ### C\#
@@ -166,11 +204,21 @@ wlite/
     rust/                    Rust FFI binding
     python/wlite/            Python ctypes binding
     go/                      Go cgo binding
+    csharp/                  C# P/Invoke binding
     zig/                     Zig C interop
   tests/conformance.c        Cross-language conformance tests
-  examples/                  Example applications
   docs/                      API reference, grammar, architecture
 ```
+
+## Relationship to dbwarden
+
+dbwarden is a declarative schema compiler for Python and SQLAlchemy. It is feature-rich: multi-database support, plugin systems, async drivers, seed management, and more.
+
+wlite is what happens when you take dbwarden's SQLite3 engine and remove everything except SQLite. The table rebuild algorithms, type normalization, collapse logic, and constraint diffing that make dbwarden's SQLite support production-grade are implemented in libwlite as a standalone C library.
+
+A CI workflow keeps libwlite's behavior synchronized with dbwarden's SQLite backend. When dbwarden improves how it handles a type, default, or constraint, those improvements flow into libwlite automatically.
+
+The result: a SQLite toolkit that carries dbwarden's quality without dbwarden's weight.
 
 ## License
 

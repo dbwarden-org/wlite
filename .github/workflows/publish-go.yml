@@ -16,5 +16,5 @@ jobs:
         run: |
           cd bindings/go
           go mod tidy
-          git tag go/v${{ github.ref_name }}
-          git push origin go/v${{ github.ref_name }}
+          git tag bindings/go/v${{ github.ref_name }}
+          git push origin bindings/go/v${{ github.ref_name }}
