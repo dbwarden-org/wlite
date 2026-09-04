@@ -2,7 +2,7 @@
 name = "wlite"
 version = "0.2.0"
 edition = "2021"
-description = "Rust bindings for libwlite — a tiny SQLite schema and migration engine"
+description = "Rust bindings for libwlite (a tiny SQLite schema and migration engine)"
 license = "MIT"
 links = "wlite"
 

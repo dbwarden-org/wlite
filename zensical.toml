@@ -1,6 +1,6 @@
 [project]
 site_name = "wlite Documentation"
-site_description = "wlite: CLI and language bindings for libwlite. SQLite schema and migration toolkit for C++, Rust, Python, Go, C#, and Zig."
+site_description = "wlite: dbwarden's SQLite3 engine as a CLI with language bindings for C++, Rust, Python, Go, C#, and Zig. Declarative schema management, migrations, and queries."
 site_url = "https://wlite.dbwarden.org"
 docs_dir = "docs"
 site_dir = "site"

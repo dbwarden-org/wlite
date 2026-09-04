@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "wlite"
 version = "0.2.0"
-description = "Python bindings for libwlite — a tiny SQLite schema and migration engine"
+description = "Python bindings for libwlite (a tiny SQLite schema and migration engine)"
 requires-python = ">=3.10"
 license = "MIT"
 

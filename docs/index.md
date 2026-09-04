@@ -20,25 +20,32 @@ description: CLI and language bindings for libwlite. Define your database in .wl
 
 ---
 
-wlite provides a command-line tool and language bindings for C++, Rust, Python, Go, and Zig that wrap [libwlite](https://github.com/dbwarden-org/libwlite). Define your database in `.wlite`, then use it from any supported language.
+wlite provides a command-line tool and language bindings for C++, Rust, Python, Go, C#, and Zig that wrap [libwlite](https://github.com/dbwarden-org/libwlite). Define your database in `.wlite`, then use it from any supported language.
+
+## Philosophy
+
+wlite follows the [dbwarden](https://github.com/dbwarden-org/dbwarden) philosophy: **your schema is the source of truth, not migration scripts**. Just as dbwarden compiles SQLAlchemy models into reviewable SQL, wlite compiles `.wlite` models into SQLite migrations. No imperative change scripts to write, maintain, or debug.
+
+The SQLite3 backend in dbwarden (table rebuilds, collapse logic, type normalization, default handling, constraint diffing) is the reference implementation. libwlite mirrors it exactly, and a CI workflow enforces behavioral sync between the two projects. The result is a SQLite developer experience that matches dbwarden's quality: declarative authoring, plain SQL output, and zero hidden behavior.
 
 ## At a glance
 
 - Declarative `.wlite` model format for schema definition
 - CLI for init, diff, migrate, query, and more
-- Language bindings for C++, Rust, Python, Go, and Zig
+- Language bindings for C++, Rust, Python, Go, C#, and Zig
 - All bindings go through the libwlite C ABI
 - SQLite-native: table rebuilds, type normalization, constraint diffing
-- Follows [dbwarden](https://github.com/dbwarden-org/dbwarden) patterns
+- Mirrors [dbwarden](https://github.com/dbwarden-org/dbwarden)'s SQLite3 backend exactly
 
 ## Why wlite
 
-Most SQLite schema tools require you to write imperative migration scripts. wlite is declarative: you define the desired schema in a `.wlite` model file, and the tooling derives the migration SQL for you.
+Most SQLite schema tools require you to write imperative migration scripts. wlite is declarative: you define the desired schema in a `.wlite` model file, and the tooling derives the migration SQL for you, the same way dbwarden derives SQL from SQLAlchemy models.
 
 - No migration scripts to write or maintain
 - Plain SQL output: reviewable, committable, executable anywhere
-- Cross-language: use the same schema from C++, Rust, Python, Go, or Zig
-- Powered by libwlite, a small C library that mirrors dbwarden's SQLite backend
+- Cross-language: use the same schema from C++, Rust, Python, Go, C#, or Zig
+- Powered by libwlite, a small C library that implements dbwarden's SQLite3 patterns
+- Developer-first: fast builds, small binaries, zero runtime dependencies beyond SQLite3
 
 ## Quick start
 
@@ -134,7 +141,9 @@ db.migrate(model);
 
 ## Relationship to dbwarden
 
-wlite follows [dbwarden](https://github.com/dbwarden-org/dbwarden) and inherits its SQLite3 development patterns. The SQLite backend in dbwarden (table rebuilds, collapse logic, type normalization, default handling, constraint diffing) is the reference implementation that libwlite mirrors. A CI workflow enforces that libwlite's SQLite behavior stays synchronized with dbwarden's SQLite backend.
+wlite exists because dbwarden's SQLite3 backend is too useful to keep locked inside a Python project. The table rebuild algorithms, type normalization, collapse logic, and constraint diffing that make dbwarden's SQLite support production-grade are implemented in libwlite as a standalone C library.
+
+A CI workflow checks that libwlite's SQLite behavior stays synchronized with dbwarden's SQLite backend. When dbwarden improves how it handles a type, default, or constraint, those improvements flow into libwlite automatically. The two projects share the same mental model: **declare the schema you want, get the SQL to make it happen**.
 
 ## Next steps
 
