@@ -346,18 +346,22 @@ fn error_handling_example() {
         Err(Error::Io(msg)) => {
             eprintln!("I/O error: {msg}");
         }
-        Err(Error::Corrupt) => {
-            eprintln!("Database is corrupt");
+        Err(Error::Sqlite(msg)) => {
+            eprintln!("SQLite error: {msg}");
+        }
+        Err(Error::Constraint(msg)) => {
+            eprintln!("Constraint violation: {msg}");
         }
         Err(Error::Memory) => {
             eprintln!("Out of memory");
         }
-        Err(Error::Range) => {
-            eprintln!("Index out of range");
+        Err(Error::Busy) => {
+            eprintln!("Database is locked");
         }
-        Err(Error::Unknown) => {
+        Err(Error::Error) => {
             eprintln!("Unknown error occurred");
         }
+        _ => {}
     }
 }
 ```
@@ -366,12 +370,17 @@ fn error_handling_example() {
 
 | Variant | Meaning | Common causes |
 |---------|---------|---------------|
-| `Error::Unknown` | General error | Unexpected failure |
-| `Error::NotFound` | File or resource not found | Missing database or model file |
+| `Error::Error` | General error | Unexpected failure |
+| `Error::InvalidArgument` | Invalid parameter | Null pointer, bad index |
 | `Error::Memory` | Allocation failed | System out of memory |
-| `Error::Io(String)` | I/O error | Disk full, permissions |
-| `Error::Corrupt` | Corrupt data | Damaged database file |
-| `Error::Range` | Index out of range | Invalid column or parameter index |
+| `Error::Io(String)` | I/O error | Disk full, permissions, file not found |
+| `Error::Parse(String)` | Parse error | Malformed .wlite schema |
+| `Error::Model(String)` | Model error | Invalid table or field reference |
+| `Error::Sqlite(String)` | SQLite error | Underlying SQLite failure |
+| `Error::Constraint(String)` | Constraint violation | UNIQUE or CHECK failure |
+| `Error::NotFound` | Resource not found | Missing table, column, or file |
+| `Error::Busy` | Database locked | Another connection holds a lock |
+| `Error::Transaction` | Transaction error | Invalid transaction state |
 
 ### Error propagation with `?` operator
 

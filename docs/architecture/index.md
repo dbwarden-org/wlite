@@ -280,30 +280,37 @@ wlite uses two build systems: Make for development and CMake for packaging and d
 
 ### Makefile
 
-The Makefile is the primary build system for development. It is designed for fast iteration:
+The Makefile builds the wlite CLI. It requires `libwlite` to be installed or built nearby:
 
 ```
-make            # build everything
-make test       # run all tests
+make            # build the CLI
+make test       # build the CLI (prints a reminder to run it)
 make clean      # remove build artifacts
-make debug      # build with debug flags
-make release    # build with optimization flags
-make install    # install to /usr/local
+make install    # install CLI to /usr/local/bin
 ```
 
-The Makefile compiles all `.c` files in `src/` into object files, then links them into `libwlite.a` (static library) and `libwlite.so` (shared library). The CLI is linked against the static library.
+The Makefile compiles `cli/main.c` and links it against libwlite and SQLite3. It uses `pkg-config` to find libwlite if installed system-wide, otherwise falls back to a local build directory.
 
 Key Makefile targets:
 
 | Target | Description |
 |--------|-------------|
-| `all` | Build the library and CLI |
-| `test` | Build and run all test suites |
-| `debug` | Build with `-g -O0 -fsanitize=address` |
-| `release` | Build with `-O2 -DNDEBUG` |
-| `install` | Install library, headers, and CLI to system paths |
-| `format` | Run clang-format on all source files |
-| `lint` | Run cppcheck static analysis |
+| `all` | Build the `wlite` CLI executable |
+| `test` | Build the CLI and print a usage reminder |
+| `clean` | Remove the built `wlite` binary |
+| `install` | Install the CLI to `$(DESTDIR)/usr/local/bin` |
+
+Key Makefile variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LIBWLITE_DIR` | `../libwlite` | Path to the local libwlite build directory |
+| `LIBWLITE_CFLAGS` | `-I$(LIBWLITE_DIR)/include` | Compiler flags for libwlite headers |
+| `LIBWLITE_LDFLAGS` | `-L$(LIBWLITE_DIR) -lwlite` | Linker flags for libwlite |
+| `CC` | `gcc` | C compiler |
+| `CFLAGS` | `-Wall -Wextra -std=c11 -pedantic -O2` | Compiler flags |
+| `LDFLAGS` | (empty) | Additional linker flags |
+| `LIBS` | `-lsqlite3` | Libraries to link |
 
 ### CMake
 
@@ -320,23 +327,34 @@ Downstream projects can use wlite via CMake's FetchContent:
 ```cmake
 FetchContent_Declare(
   wlite
-  GIT_REPOSITORY https://github.com/dbwarden/wlite.git
+  GIT_REPOSITORY https://github.com/dbwarden-org/wlite.git
   GIT_TAG main
 )
 FetchContent_MakeAvailable(wlite)
 target_link_libraries(myapp PRIVATE wlite)
 ```
 
+### CMake Options
+
+The CMake build supports the following options:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `WLITE_BUILD_SHARED` | ON | Build the shared library |
+| `WLITE_BUILD_STATIC` | ON | Build the static library |
+| `WLITE_BUILD_CLI` | ON | Build the CLI executable |
+| `WLITE_BUILD_TESTS` | ON | Build the test executables |
+
 ### Compiler Requirements
 
-wlite requires a C99 compiler. It uses no compiler extensions. It has been tested with:
+wlite requires a C11 compiler. It uses no compiler extensions. It has been tested with:
 
 - GCC 9 and later
 - Clang 10 and later
 - Apple Clang 12 and later
 - MSVC 2019 and later (with CMake)
 
-The only external dependency is SQLite3. wlite can use the system SQLite3 or a bundled copy. The Makefile supports both via a `SQLITE3_DIR` variable.
+The only external dependency is SQLite3, which is found via `pkg-config` or CMake's `find_package`.
 
 ## Testing Approach
 
@@ -397,13 +415,13 @@ Binding tests focus on:
 
 ### Test Runner
 
-All tests are run via `make test`. The test runner:
+CMake builds run tests via `ctest` after building with `-DWLITE_BUILD_TESTS=ON`. The CMake test suite includes:
 
-1. Builds the library and CLI
-2. Runs unit tests
-3. Runs integration tests
-4. Runs binding tests (if the binding's compiler/toolchain is available)
-5. Reports pass/fail counts
+- `test_wlite` — core library unit tests
+- `test_edge` — edge case tests
+- `test_conformance` — conformance tests
+
+The Makefile's `test` target builds the CLI but does not run any tests — it prints a reminder to run `./wlite version`.
 
 CI runs the full test suite on every push, across Linux, macOS, and Windows (via MSVC and MinGW).
 

@@ -350,11 +350,16 @@ except wlite.Error as e:
 |------|----------|---------|
 | 0 | `WLITE_OK` | Success |
 | 1 | `WLITE_ERROR` | General error |
-| 2 | `WLITE_NOT_FOUND` | File not found |
-| 3 | `WLITE_MEMORY` | Allocation failed |
-| 4 | `WLITE_IO` | I/O error |
-| 5 | `WLITE_CORRUPT` | Corrupt data |
-| 6 | `WLITE_RANGE` | Index out of range |
+| 2 | `WLITE_INVALID_ARGUMENT` | Null pointer or invalid parameter |
+| 3 | `WLITE_OUT_OF_MEMORY` | Allocation failed |
+| 4 | `WLITE_IO_ERROR` | I/O error |
+| 5 | `WLITE_PARSE_ERROR` | Schema parse error |
+| 6 | `WLITE_MODEL_ERROR` | Schema model error |
+| 7 | `WLITE_SQLITE_ERROR` | SQLite error |
+| 8 | `WLITE_CONSTRAINT_ERROR` | Constraint violation |
+| 9 | `WLITE_NOT_FOUND` | Resource not found |
+| 10 | `WLITE_BUSY` | Database locked |
+| 11 | `WLITE_TRANSACTION_ERROR` | Transaction error |
 
 ### Custom error handling
 

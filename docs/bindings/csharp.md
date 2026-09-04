@@ -345,11 +345,16 @@ catch (WliteException ex)
 |------|----------|---------|
 | 0 | `WliteResult.OK` | Success |
 | 1 | `WliteResult.Error` | General error |
-| 2 | `WliteResult.NotFound` | File not found |
-| 3 | `WliteResult.Memory` | Allocation failed |
-| 4 | `WliteResult.IO` | I/O error |
-| 5 | `WliteResult.Corrupt` | Corrupt data |
-| 6 | `WliteResult.Range` | Index out of range |
+| 2 | `WliteResult.InvalidArgument` | Null pointer or invalid parameter |
+| 3 | `WliteResult.OutOfMemory` | Allocation failed |
+| 4 | `WliteResult.IoError` | I/O error |
+| 5 | `WliteResult.ParseError` | Schema parse error |
+| 6 | `WliteResult.ModelError` | Schema model error |
+| 7 | `WliteResult.SqliteError` | SQLite error |
+| 8 | `WliteResult.ConstraintError` | Constraint violation |
+| 9 | `WliteResult.NotFound` | Resource not found |
+| 10 | `WliteResult.Busy` | Database locked |
+| 11 | `WliteResult.TransactionError` | Transaction error |
 
 ### Custom error handling
 

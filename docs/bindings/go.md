@@ -450,11 +450,17 @@ func errorHandlingExample() {
         if errors.As(err, &wliteErr) {
             switch wliteErr.Code {
             case wlite.NOT_FOUND:
-                log.Println("Database file not found")
-            case wlite.IO:
+                log.Println("Resource not found")
+            case wlite.IO_ERROR:
                 log.Println("I/O error:", wliteErr.Message)
-            case wlite.CORRUPT:
-                log.Println("Database is corrupt")
+            case wlite.SQLITE_ERROR:
+                log.Println("SQLite error:", wliteErr.Message)
+            case wlite.CONSTRAINT_ERROR:
+                log.Println("Constraint violation:", wliteErr.Message)
+            case wlite.BUSY:
+                log.Println("Database is locked")
+            case wlite.OUT_OF_MEMORY:
+                log.Println("Out of memory")
             default:
                 log.Println("wlite error:", err)
             }
