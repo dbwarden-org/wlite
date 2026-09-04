@@ -1,6 +1,6 @@
 ---
 title: C# Binding
-description: C# P/Invoke binding for wlite. Use .wlite schemas from .NET.
+description: C# P/Invoke binding for wlite.
 ---
 
 # C# Binding
@@ -15,21 +15,16 @@ dotnet add package wlite
 
 Requires libwlite to be installed on your system.
 
-## Usage
+## Basic usage
 
 ```csharp
 using Wlite;
 
-// Load a model
 using var model = Model.Load("app.wlite");
-
-// Open a database
 using var db = Database.Open("app.db");
 
-// Migrate
 db.Migrate(model);
 
-// Query
 using var stmt = db.Prepare("SELECT * FROM users");
 while (stmt.Step())
 {
@@ -47,15 +42,39 @@ while (stmt.Step())
 | `Wlite.Statement` | `wlite_stmt` | Prepared SQL statement |
 | `Wlite.Transaction` | `wlite_tx` | Active transaction |
 
-## Prepared Statements
+## Database operations
 
 ```csharp
-using var stmt = db.Prepare("SELECT * FROM users WHERE id = ?");
-stmt.Bind(1, 42L);
+using var db = Database.Open("app.db");
+
+// Execute DDL/DML
+db.Execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)");
+db.Execute("INSERT INTO test (name) VALUES ('hello')");
+
+// Prepare and query
+using var stmt = db.Prepare("SELECT * FROM test WHERE id = ?");
+stmt.Bind(1, 1L);
 while (stmt.Step())
 {
-    Console.WriteLine(stmt.ColumnText(0));
+    var name = stmt.ColumnText(0);
+    var id = stmt.ColumnInt64(0);
+    Console.WriteLine($"{id}: {name}");
 }
+```
+
+## Prepared statements
+
+```csharp
+using var stmt = db.Prepare("INSERT INTO users (name, email) VALUES (?, ?)");
+stmt.Bind(1, "Alice");
+stmt.Bind(2, "alice@example.com");
+stmt.Step();
+
+// Reset and reuse
+stmt.Reset();
+stmt.Bind(1, "Bob");
+stmt.Bind(2, "bob@example.com");
+stmt.Step();
 ```
 
 ## Transactions
@@ -63,11 +82,12 @@ while (stmt.Step())
 ```csharp
 using var tx = db.Begin();
 db.Execute("INSERT INTO users (name) VALUES ('Alice')");
+db.Execute("INSERT INTO users (name) VALUES ('Bob')");
 tx.Commit();
-// Rollback on exception: tx.Dispose() without Commit()
+// Rollback on exception: tx.Dispose() without calling Commit()
 ```
 
-## Error Handling
+## Error handling
 
 All operations throw `WliteException` on failure:
 
@@ -89,5 +109,10 @@ All types implement `IDisposable`. Use `using` statements for automatic cleanup:
 ```csharp
 using var model = Model.Load("app.wlite");
 using var db = Database.Open("app.db");
-// Resources freed automatically at end of scope
+using var stmt = db.Prepare("SELECT * FROM users");
+// All resources freed automatically at end of scope
 ```
+
+## Thread safety
+
+Models are immutable after loading and can be shared via `System.Threading.Tasks.Task` or `Thread`. Database connections are not thread-safe; use one per thread.

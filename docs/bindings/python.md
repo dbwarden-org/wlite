@@ -1,6 +1,6 @@
 ---
 title: Python Binding
-description: Python ctypes binding for wlite. Use .wlite schemas from Python.
+description: Python ctypes binding for wlite.
 ---
 
 # Python Binding
@@ -13,17 +13,14 @@ The `wlite` Python package provides access to libwlite via ctypes. Define your s
 pip install wlite
 ```
 
-Requires libwlite to be installed on your system.
+Requires libwlite to be installed on your system (`make install` from the libwlite repo).
 
-## Usage
+## Basic usage
 
 ```python
 import wlite
 
-# Load a model
 model = wlite.Model.load("app.wlite")
-
-# Open a database
 db = wlite.Database.open("app.db")
 
 # Migrate
@@ -44,25 +41,63 @@ for row in rows:
 | `wlite.Statement` | `wlite_stmt` | Prepared SQL statement |
 | `wlite.Transaction` | `wlite_tx` | Active transaction |
 
-## Prepared Statements
+## Database operations
 
 ```python
-stmt = db.prepare("SELECT * FROM users WHERE id = ?")
+import wlite
+
+db = wlite.Database.open("app.db")
+
+# Execute DDL/DML
+db.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)")
+db.execute("INSERT INTO test (name) VALUES (?)", ("hello",))
+
+# Query returns list of dicts
+rows = db.query("SELECT * FROM test")
+for row in rows:
+    print(row["id"], row["name"])
+```
+
+## Prepared statements
+
+```python
+stmt = db.prepare("SELECT * FROM users WHERE id = ? AND active = ?")
 stmt.bind(1, 42)
+stmt.bind(2, True)
+
 while stmt.step():
-    print(stmt.column_text(0))
+    print(stmt.column_text(0), stmt.column_int64(1))
+
 stmt.finalize()
 ```
+
+Column access methods:
+
+| Method | Returns |
+|--------|---------|
+| `stmt.column_count()` | int |
+| `stmt.column_name(i)` | str |
+| `stmt.column_type(i)` | int |
+| `stmt.column_int64(i)` | int |
+| `stmt.column_double(i)` | float |
+| `stmt.column_text(i)` | str |
 
 ## Transactions
 
 ```python
-with db.transaction() as tx:
-    db.execute("INSERT INTO users (name) VALUES (?)", ("Alice",))
-    # Automatically committed on clean exit, rolled back on exception
+tx = db.begin()
+try:
+    db.execute("INSERT INTO users (name) VALUES ('Alice')")
+    db.execute("INSERT INTO users (name) VALUES ('Bob')")
+    tx.commit()
+except Exception:
+    tx.rollback()
+    raise
+finally:
+    tx.free()
 ```
 
-## Error Handling
+## Error handling
 
 All operations raise `wlite.Error` on failure:
 
@@ -71,4 +106,29 @@ try:
     db = wlite.Database.open("app.db")
 except wlite.Error as e:
     print(f"Error: {e}")
+```
+
+Error codes:
+
+| Code | Meaning |
+|------|---------|
+| `WLITE_OK` | Success |
+| `WLITE_ERROR` | General error |
+| `WLITE_NOT_FOUND` | File not found |
+| `WLITE_MEMORY` | Allocation failed |
+| `WLITE_IO` | I/O error |
+| `WLITE_CORRUPT` | Corrupt data |
+| `WLITE_RANGE` | Index out of range |
+
+## Schema inspection
+
+```python
+model = wlite.Model.load("app.wlite")
+
+for i in range(model.table_count()):
+    table = model.table_at(i)
+    print(f"Table: {table.name}")
+    for j in range(table.field_count()):
+        field = table.field_at(j)
+        print(f"  {field.name} (type={field.type}, pk={field.is_primary_key})")
 ```
