@@ -129,6 +129,7 @@ db.migrate(model);
 | Rust | `wlite` crate | Complete |
 | Python | `wlite` on PyPI | Complete |
 | Go | cgo binding | Complete |
+| C# | `wlite` on NuGet | Complete |
 | Zig | C interop | Structured |
 
 ## Relationship to dbwarden

@@ -73,6 +73,16 @@ auto db = wlite::Database::open("app.db");
 db.migrate(model);
 ```
 
+### C\#
+
+```csharp
+using Wlite;
+
+using var model = Model.Load("app.wlite");
+using var db = Database.Open("app.db");
+db.Migrate(model);
+```
+
 ## Build
 
 ```bash
@@ -137,6 +147,7 @@ model User {
 | Rust | `wlite` crate | Complete |
 | Python | `wlite` on PyPI | Complete |
 | Go | cgo binding | Complete |
+| C# | `wlite` on NuGet | Complete |
 | Zig | C interop | Structured |
 
 ## Repository Layout

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PackageId>wlite</PackageId>
+    <Version>0.2.0</Version>
+    <Authors>Emiliano Gandini Outeda</Authors>
+    <Description>C# bindings for libwlite — a tiny SQLite schema and migration engine</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/dbwarden-org/wlite</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/dbwarden-org/wlite</RepositoryUrl>
+    <PackageTags>sqlite;schema;migration;wlite</PackageTags>
+  </PropertyGroup>
+
+</Project>

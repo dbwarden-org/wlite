@@ -1,7 +1,7 @@
 [project]
 site_name = "wlite Documentation"
-site_description = "wlite: CLI and language bindings for libwlite. SQLite schema and migration toolkit for C++, Rust, Python, Go, and Zig."
-site_url = "https://docs.dbwarden.org/wlite"
+site_description = "wlite: CLI and language bindings for libwlite. SQLite schema and migration toolkit for C++, Rust, Python, Go, C#, and Zig."
+site_url = "https://wlite.dbwarden.org"
 docs_dir = "docs"
 site_dir = "site"
 
@@ -67,13 +67,14 @@ Bindings = [
   {Python = "bindings/python.md"},
   {Cpp = "bindings/cpp.md"},
   {Go = "bindings/go.md"},
+  {"C#" = "bindings/csharp.md"},
   {Zig = "bindings/zig.md"},
 ]
 
 [project.markdown_extensions]
 "seoslug.contrib.zensical" = {
   canonical_host = "dbwarden.org",
-  public_base_url = "https://docs.dbwarden.org/wlite/",
+  public_base_url = "https://wlite.dbwarden.org/",
   site_name = "wlite Documentation",
   title_template = "{title} - wlite",
   publisher_name = "Emiliano Gandini Outeda",
