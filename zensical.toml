@@ -52,6 +52,8 @@ name = "wlite on GitHub"
 [[project.nav]]
 Overview = [
   {Overview = "index.md"},
+  {Philosophy = "philosophy.md"},
+  {"Relationship to dbwarden" = "relationship-to-dbwaden.md"},
   {"Grammar" = "grammar.md"},
   {"Workflow" = "workflow.md"},
 ]
@@ -72,12 +74,13 @@ Architecture = [
 
 [[project.nav]]
 Bindings = [
-  {Rust = "bindings/rust.md"},
-  {Python = "bindings/python.md"},
-  {Cpp = "bindings/cpp.md"},
-  {Go = "bindings/go.md"},
-  {"C#" = "bindings/csharp.md"},
-  {Zig = "bindings/zig.md"},
+  {C = "bindings/c/index.md"},
+  {Rust = "bindings/rust/index.md"},
+  {Python = "bindings/python/index.md"},
+  {Cpp = "bindings/cpp/index.md"},
+  {Go = "bindings/go/index.md"},
+  {"C#" = "bindings/csharp/index.md"},
+  {Zig = "bindings/zig/index.md"},
 ]
 
 [project.markdown_extensions]
