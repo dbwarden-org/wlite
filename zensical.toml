@@ -65,7 +65,7 @@ Overview = [
 Bindings = [
   {Rust = "bindings/rust.md"},
   {Python = "bindings/python.md"},
-  {C++ = "bindings/cpp.md"},
+  {Cpp = "bindings/cpp.md"},
   {Go = "bindings/go.md"},
   {Zig = "bindings/zig.md"},
 ]
