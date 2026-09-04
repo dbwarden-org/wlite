@@ -1,3 +1,3 @@
-module github.com/dbwarden/wlite-go
+module github.com/dbwarden-org/wlite/bindings/go
 
 go 1.21
