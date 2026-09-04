@@ -6,6 +6,10 @@ A tiny SQLite schema and migration toolkit. CLI and language bindings for libwli
 
 wlite provides a command-line tool and bindings for C++, Rust, Python, Go, and Zig that wrap libwlite. Define your database in `.wlite`, then use it from any supported language.
 
+## Relationship to dbwarden
+
+wlite follows [dbwarden](https://github.com/dbwarden-org/dbwarden) and inherits its SQLite3 development patterns. The SQLite backend in dbwarden (table rebuilds, collapse logic, type normalization, default handling, constraint diffing) is the reference implementation that libwlite mirrors. A CI workflow enforces that libwlite's SQLite behavior stays synchronized with dbwarden's SQLite backend.
+
 ## Quick Start
 
 ### CLI
