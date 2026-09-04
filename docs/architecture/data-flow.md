@@ -468,7 +468,7 @@ A table rebuild is expanded into a sequence of SQL statements:
 PRAGMA foreign_keys = OFF;
 
 -- 2. Create staging table with correct schema
-CREATE TABLE _staging_users (
+CREATE TABLE users__wlite_new (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     email TEXT NOT NULL,
@@ -476,14 +476,14 @@ CREATE TABLE _staging_users (
 );
 
 -- 3. Copy data from old table
-INSERT INTO _staging_users (id, name, email, created_at)
+INSERT INTO users__wlite_new (id, name, email, created_at)
 SELECT id, name, email, created_at FROM users;
 
 -- 4. Drop old table
 DROP TABLE users;
 
 -- 5. Rename staging to final name
-ALTER TABLE _staging_users RENAME TO users;
+ALTER TABLE users__wlite_new RENAME TO users;
 
 -- 6. Recreate indexes
 CREATE INDEX IF NOT EXISTS users_email ON users (email);
@@ -505,9 +505,10 @@ Before collapse:
 After collapse:
   ALTER TABLE users ADD COLUMN created_at ...;
   -- single rebuild with all changes
-  CREATE TABLE _staging_users (...) AS SELECT ...;
+  CREATE TABLE users__wlite_new (...);
+  INSERT INTO users__wlite_new (...) SELECT ... FROM users;
   DROP TABLE users;
-  ALTER TABLE _staging_users RENAME TO users;
+  ALTER TABLE users__wlite_new RENAME TO users;
 ```
 
 ### Ordering example
@@ -557,12 +558,12 @@ Plan:
 
 ```sql
 PRAGMA foreign_keys = OFF;
-CREATE TABLE _staging_users (
+CREATE TABLE users__wlite_new (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name INTEGER NOT NULL
 ) AS SELECT id, name FROM users;
 DROP TABLE users;
-ALTER TABLE _staging_users RENAME TO users;
+ALTER TABLE users__wlite_new RENAME TO users;
 PRAGMA foreign_keys = ON;
 ```
 
@@ -632,9 +633,10 @@ Every migration is wrapped in a transaction. If any step fails, the entire migra
 ```c
 // wlite_migrate wraps everything in:
 BEGIN IMMEDIATE;
-  CREATE TABLE _staging_users (...) AS SELECT ...;
+  CREATE TABLE users__wlite_new (...);
+  INSERT INTO users__wlite_new (...) SELECT ... FROM users;
   DROP TABLE users;
-  ALTER TABLE _staging_users RENAME TO users;
+  ALTER TABLE users__wlite_new RENAME TO users;
   CREATE INDEX ...;
 COMMIT;
 // If any step fails: ROLLBACK

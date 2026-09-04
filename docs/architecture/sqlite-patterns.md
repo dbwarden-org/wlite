@@ -54,7 +54,7 @@ A table rebuild generates this sequence:
 PRAGMA foreign_keys = OFF;
 
 -- 2. Create staging table with correct schema
-CREATE TABLE _staging_users (
+CREATE TABLE users__wlite_new (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     email TEXT NOT NULL,
@@ -62,14 +62,14 @@ CREATE TABLE _staging_users (
 );
 
 -- 3. Copy data from old table
-INSERT INTO _staging_users (id, name, email, created_at)
+INSERT INTO users__wlite_new (id, name, email, created_at)
 SELECT id, name, email, created_at FROM users;
 
 -- 4. Drop old table
 DROP TABLE users;
 
 -- 5. Rename staging to final name
-ALTER TABLE _staging_users RENAME TO users;
+ALTER TABLE users__wlite_new RENAME TO users;
 
 -- 6. Recreate indexes
 CREATE INDEX IF NOT EXISTS users_email ON users (email);
@@ -109,21 +109,22 @@ wlite collapses multiple rebuilds on the same table into a single rebuild. The c
 --   2. add field bio text
 
 -- Without collapse (2 rebuilds):
-CREATE TABLE _staging_users (...) AS SELECT ...;
+CREATE TABLE users__wlite_new (...);
+INSERT INTO users__wlite_new (...) SELECT ... FROM users;
 DROP TABLE users;
-ALTER TABLE _staging_users RENAME TO users;
-CREATE TABLE _staging_users (...) AS SELECT ...;
-DROP TABLE users;
-ALTER TABLE _staging_users RENAME TO users;
+ALTER TABLE users__wlite_new RENAME TO users;
+CREATE TABLE users__wlite_new (...);
+INSERT INTO users__wlite_new (...) SELECT ... FROM users;
+ALTER TABLE users__wlite_new RENAME TO users;
 
 -- With collapse (1 rebuild):
-CREATE TABLE _staging_users (
+CREATE TABLE users__wlite_new (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     bio TEXT
 ) AS SELECT id, name FROM users;
 DROP TABLE users;
-ALTER TABLE _staging_users RENAME TO users;
+ALTER TABLE users__wlite_new RENAME TO users;
 ```
 
 ### When collapse does NOT apply
@@ -171,8 +172,9 @@ wlite normalizes types before comparison so equivalent types do not trigger migr
 -- Database:    age REAL
 
 -- wlite sees a type change. Migration generated:
--- CREATE TABLE _staging (...) AS SELECT ...;
--- DROP TABLE ...;
+-- CREATE TABLE users__wlite_new (...);
+-- INSERT INTO users__wlite_new (...) SELECT ... FROM users;
+-- DROP TABLE users;
 -- ALTER TABLE _staging RENAME TO ...;
 ```
 

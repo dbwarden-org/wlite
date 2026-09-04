@@ -342,7 +342,7 @@ The `wlite` crate exposes optional features that can be enabled in `Cargo.toml`:
 
 ```toml
 [dependencies]
-wlite = { version = "0.1", features = ["unstable"] }
+wlite = { version = "0.2", features = ["unstable"] }
 ```
 
 ### Default features
@@ -360,7 +360,7 @@ When building without default features, you get a minimal crate with only the ty
 
 ```toml
 [dependencies]
-wlite = { version = "0.1", default-features = false }
+wlite = { version = "0.2", default-features = false }
 ```
 
 ### Conditional compilation
@@ -407,7 +407,7 @@ cargo build
 
 ## Version compatibility
 
-The `wlite` crate tracks the libwlite ABI version. Version 0.1.x of the crate is compatible with ABI version 1. Check the crate documentation for the latest compatibility matrix.
+The `wlite` crate tracks the libwlite ABI version. Version 0.2.x of the crate is compatible with ABI version 1. Check the crate documentation for the latest compatibility matrix.
 
 ```rust
 fn check_compatibility() {
