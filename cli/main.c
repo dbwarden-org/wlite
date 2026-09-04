@@ -188,12 +188,48 @@ static int cmd_generate(const char *dbpath, const char *schemapath, const char *
     wl_plan_free(plan); return 0;
 }
 
-static int cmd_migrate(const char *dbpath, const char *schemapath) {
+static int cmd_migrate(const char *dbpath, const char *schemapath, int force) {
     wlite_db *db = open_db(dbpath);
     if (!db) { fprintf(stderr, "Cannot open %s\n", dbpath); return 1; }
     wlite_model *model = NULL;
     wlite_result rc = wlite_model_load_file(schemapath, &model);
     if (rc != WLITE_OK) { fprintf(stderr, "Schema parse failed: %s\n", wlite_strerror(rc)); wlite_close(db); return 1; }
+
+    /* Check for destructive operations before applying */
+    WlPlan *plan = NULL;
+    rc = wlite_diff(db, model, &plan);
+    if (rc == WLITE_OK && plan) {
+        int has_destructive = 0;
+        int has_rebuild = 0;
+        for (size_t i = 0; i < plan->step_count; i++) {
+            if (plan->steps[i].safety == WL_SAFETY_DESTRUCTIVE) has_destructive = 1;
+            if (plan->steps[i].safety == WL_SAFETY_REQUIRES_REBUILD) has_rebuild = 1;
+        }
+        if ((has_destructive || has_rebuild) && !force) {
+            printf("Migration contains ");
+            if (has_destructive) printf("DESTRUCTIVE");
+            else printf("REBUILD");
+            printf(" operations:\n");
+            for (size_t i = 0; i < plan->step_count; i++) {
+                WlPlanStep *s = &plan->steps[i];
+                if (s->safety == WL_SAFETY_DESTRUCTIVE || s->safety == WL_SAFETY_REQUIRES_REBUILD) {
+                    printf("  %s %s", s->table ? s->table : "", s->detail ? s->detail : "");
+                    printf(" [%s]\n", s->safety == WL_SAFETY_DESTRUCTIVE ? "DESTRUCTIVE" : "REBUILD");
+                }
+            }
+            printf("\nApply anyway? [y/N] ");
+            int ch = getchar();
+            if (ch != 'y' && ch != 'Y') {
+                printf("Aborted.\n");
+                wl_plan_free(plan);
+                wlite_model_free(model);
+                wlite_close(db);
+                return 0;
+            }
+        }
+        wl_plan_free(plan);
+    }
+
     rc = wlite_migrate(db, model);
     wlite_model_free(model);
     if (rc != WLITE_OK) { fprintf(stderr, "Migration failed: %s\n", wlite_strerror(rc)); wlite_close(db); return 1; }
@@ -320,7 +356,7 @@ static void usage(void) {
         "wlite — SQLite schema and migration toolkit\n\n"
         "Commands:\n"
         "  init                           Create schema.wlite + migrations/\n"
-        "  migrate <db> <schema>          Apply migrations to database\n"
+        "  migrate <db> <schema> [--force]  Apply migrations to database\n"
         "  inspect <db> [--json]          Show database schema\n"
         "  diff <db> <schema> [--json]    Compare database against schema\n"
         "  plan <db> <schema> [--json]    Show migration plan\n"
@@ -340,7 +376,10 @@ int main(int argc, char **argv) {
     if (argc < 2) { usage(); return 1; }
     const char *cmd = argv[1];
     if (strcmp(cmd, "init") == 0) return cmd_init();
-    if (strcmp(cmd, "migrate") == 0) { if (argc<4) { usage(); return 1; } return cmd_migrate(argv[2], argv[3]); }
+    if (strcmp(cmd, "migrate") == 0) { if (argc<4) { usage(); return 1; }
+        int force = 0;
+        for (int i=4;i<argc;i++) if (strcmp(argv[i],"--force")==0) force=1;
+        return cmd_migrate(argv[2], argv[3], force); }
     if (strcmp(cmd, "version") == 0) { printf("wlite %d.%d.%d\n", WLITE_VERSION_MAJOR, WLITE_VERSION_MINOR, WLITE_VERSION_PATCH); return 0; }
     if (strcmp(cmd, "inspect") == 0) { if (argc<3) { usage(); return 1; } return cmd_inspect(argv[2], argc>3 && strcmp(argv[3],"--json")==0); }
     if (strcmp(cmd, "diff") == 0) { if (argc<4) { usage(); return 1; } return cmd_diff(argv[2], argv[3], argc>4 && strcmp(argv[4],"--json")==0); }

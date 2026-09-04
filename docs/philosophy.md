@@ -200,21 +200,45 @@ wlite adds declarative schema management on top of SQLite without changing the d
 
 ## Compared to SQLAlchemy + Alembic
 
-Alembic is the standard migration tool for SQLAlchemy. It works well, but it has real costs:
+Alembic is the standard migration tool for SQLAlchemy. It works well within the Python ecosystem. The main difference is approach: Alembic uses an imperative migration chain, while wlite uses a declarative model comparison.
 
-- **Python dependency**: Alembic requires Python, SQLAlchemy, and a working Alembic configuration. If your application is not in Python, this is a significant overhead.
-- **Migration chain**: Alembic maintains a chain of numbered migrations. Each migration references its parent. If you delete or reorder a migration, the chain breaks.
-- **Autogenerate limitations**: Alembic can autogenerate migrations by comparing SQLAlchemy models to the database, but it often misses constraints, defaults, and column types that are not expressed in the model. You end up editing generated files by hand.
-- **Downgrade scripts**: Alembic requires you to write downgrade functions. Most teams do not test these. They rot.
-- **Branching conflicts**: When two developers add migrations on different branches, you get a merge conflict in the migration chain. Resolving it requires careful ordering and sometimes manual edits.
+| Aspect | Alembic | wlite |
+|--------|---------|-------|
+| Approach | Imperative (migration chain) | Declarative (model vs database) |
+| Runtime | Python + SQLAlchemy | Any language via libwlite |
+| Schema source | Migration files | Model file |
+| Rollback | Hand-written downgrade functions | Revert model, re-migrate |
+| Merge conflicts | Common in migration chain | Simple text merge in model file |
+| New developer onboarding | Read migration chain | Read model file |
 
-wlite does not require SQLAlchemy, does not require Python (if you use the C or C++ bindings), and does not maintain a migration chain. You describe the desired state and wlite computes the diff. There are no numbered migrations to order, no downgrade functions to maintain, and no merge conflicts in a chain.
+wlite does not require SQLAlchemy, does not require Python (if you use the C or C++ bindings), and does not maintain a migration chain. You describe the desired state and wlite computes the diff.
 
 ### When Alembic is the right choice
 
-If your application is in Python, uses SQLAlchemy extensively, and needs runtime model introspection, Alembic may be the better tool. Alembic integrates tightly with SQLAlchemy's ORM, and if you are already paying the cost of that dependency, the marginal cost of Alembic is low.
+If your application is in Python, uses SQLAlchemy extensively, and needs runtime model introspection, Alembic may be the better choice. Alembic integrates tightly with SQLAlchemy's ORM, and if you are already paying the cost of that dependency, the marginal cost of Alembic is low.
 
 wlite is designed for teams that want schema management without the ORM tax. If your application is not in Python, or if you want a tool that works across languages, wlite is the better choice.
+
+## Compared to dbwarden
+
+dbwarden is the full-featured version of the same idea. It supports PostgreSQL, MySQL, ClickHouse, SQLite, and MariaDB. It has plugins for seeds, RBAC, FastAPI, and sandbox testing. It runs in Python with SQLAlchemy.
+
+wlite is what happens when you take dbwarden's SQLite3 engine and remove everything except SQLite. The same diff algorithm, the same rebuild logic, the same type normalization, the same collapse behavior. But without Python, without SQLAlchemy, without plugins.
+
+| Aspect | dbwarden | wlite |
+|--------|----------|-------|
+| Databases | PostgreSQL, MySQL, ClickHouse, SQLite, MariaDB | SQLite only |
+| Runtime | Python 3.12+ | Any (C library) |
+| Schema format | SQLAlchemy models | .wlite files |
+| Plugin system | Yes (seeds, RBAC, FastAPI, etc.) | No |
+| Async support | Yes | No |
+| Language bindings | Python only | C, C++, Rust, Python, Go, C#, Zig |
+| Build system | pip / uv | Make / CMake |
+| Dependencies | SQLAlchemy, drivers | SQLite3 only |
+
+Use dbwarden when you need multi-database support, plugins, or Python-native development. Use wlite when you need SQLite schema management in embedded systems, CLI tools, TUIs, or any non-Python environment.
+
+The two projects share the same SQLite3 backend. Improvements in one flow into the other automatically via CI synchronization.
 
 ## Compared to other SQLite migration tools
 
