@@ -210,13 +210,62 @@ This applies the diff SQL to the database. It creates the `_wlite_migrations`
 tracking table if it does not exist, computes a checksum of the migration, and
 records it.
 
-Output on success:
+### Interactive prompts
+
+By default, `wlite migrate` prompts for confirmation before applying:
+
+- **Renames**: When a column rename is inferred (same definition, different name),
+  wlite asks to confirm each rename. Renames can be ambiguous, especially when
+  multiple columns are involved.
+- **Destructive/Rebuild operations**: Operations that drop columns, drop tables,
+  or rebuild tables trigger a confirmation prompt.
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Skip all confirmation prompts. Apply everything automatically. |
+| `--rename` | Auto-confirm all inferred renames. Destructive/rebuild prompts still apply unless `--force` is also set. |
+
+Examples:
+
+```bash
+# Interactive (prompts for renames and destructive ops)
+wlite migrate mydb.db schema.wlite
+
+# Auto-confirm renames, still prompt for destructive ops
+wlite migrate mydb.db schema.wlite --rename
+
+# Skip all prompts (use in CI or scripts)
+wlite migrate mydb.db schema.wlite --force
+
+# Combine flags
+wlite migrate mydb.db schema.wlite --rename --force
+```
+
+### Output on success
 
 ```
 Migration applied successfully.
 ```
 
-Output on error:
+### Output with prompts
+
+```
+Inferred renames detected:
+  RENAME COLUMN users.name -> full_name
+
+Renames can be ambiguous. Use --rename to auto-confirm, or confirm each:
+  Rename users.name? [y/N] y
+
+Migration contains REBUILD operations:
+  users type changed [REBUILD]
+
+Apply anyway? [y/N] y
+Migration applied successfully.
+```
+
+### Output on error
 
 ```
 Migration failed: <error message>

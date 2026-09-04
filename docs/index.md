@@ -220,7 +220,7 @@ For other languages, see the dedicated binding pages:
 | Command | Description |
 |---------|-------------|
 | `wlite init` | Create `schema.wlite` and `migrations/` directory in the current project. |
-| `wlite migrate <db> <schema>` | Apply schema migrations to the database. Parses the model, computes the diff, plans the migration, and executes it within a transaction. |
+| `wlite migrate <db> <schema>` | Apply schema migrations. Prompts for renames and destructive ops. Flags: `--force` (skip all), `--rename` (auto-confirm renames). |
 | `wlite diff <db> <schema>` | Compare the live database against the schema model. Prints the SQL needed to bring the database into alignment. Supports `--json` for machine-readable output. |
 | `wlite plan <db> <schema>` | Show a human-readable migration plan. Describes what will be created, altered, or dropped without executing any changes. Supports `--json`. |
 | `wlite generate <db> <schema>` | Generate migration SQL and write it to a file in `migrations/`. Supports `--name` to set the migration name and `--yes` to skip confirmation. |

@@ -188,23 +188,55 @@ static int cmd_generate(const char *dbpath, const char *schemapath, const char *
     wl_plan_free(plan); return 0;
 }
 
-static int cmd_migrate(const char *dbpath, const char *schemapath, int force) {
+static int cmd_migrate(const char *dbpath, const char *schemapath, int force, int allow_renames) {
     wlite_db *db = open_db(dbpath);
     if (!db) { fprintf(stderr, "Cannot open %s\n", dbpath); return 1; }
     wlite_model *model = NULL;
     wlite_result rc = wlite_model_load_file(schemapath, &model);
     if (rc != WLITE_OK) { fprintf(stderr, "Schema parse failed: %s\n", wlite_strerror(rc)); wlite_close(db); return 1; }
 
-    /* Check for destructive operations before applying */
+    /* Get the plan to check for renames and destructive operations */
     WlPlan *plan = NULL;
     rc = wlite_diff(db, model, &plan);
     if (rc == WLITE_OK && plan) {
         int has_destructive = 0;
         int has_rebuild = 0;
+        int has_renames = 0;
         for (size_t i = 0; i < plan->step_count; i++) {
             if (plan->steps[i].safety == WL_SAFETY_DESTRUCTIVE) has_destructive = 1;
             if (plan->steps[i].safety == WL_SAFETY_REQUIRES_REBUILD) has_rebuild = 1;
+            if (plan->steps[i].op == WL_PLAN_RENAME_COLUMN) has_renames = 1;
         }
+
+        /* Rename wizard: prompt for each rename unless --rename is set */
+        if (has_renames && !allow_renames) {
+            printf("Inferred renames detected:\n");
+            for (size_t i = 0; i < plan->step_count; i++) {
+                WlPlanStep *s = &plan->steps[i];
+                if (s->op == WL_PLAN_RENAME_COLUMN) {
+                    printf("  RENAME COLUMN %s.%s -> %s\n",
+                           s->table ? s->table : "?",
+                           s->detail ? s->detail : "?",
+                           s->sql ? "(see SQL)" : "?");
+                }
+            }
+            printf("\nRenames can be ambiguous. Use --rename to auto-confirm, or confirm each:\n");
+            for (size_t i = 0; i < plan->step_count; i++) {
+                WlPlanStep *s = &plan->steps[i];
+                if (s->op == WL_PLAN_RENAME_COLUMN) {
+                    printf("  Rename %s.%s? [y/N] ", s->table ? s->table : "?", s->detail ? s->detail : "?");
+                    int ch = getchar();
+                    if (ch != 'y' && ch != 'Y') {
+                        printf("  Skipped.\n");
+                        /* Mark this step as skipped by clearing its SQL */
+                        free(s->sql);
+                        s->sql = NULL;
+                    }
+                }
+            }
+        }
+
+        /* Destructive/rebuild confirmation */
         if ((has_destructive || has_rebuild) && !force) {
             printf("Migration contains ");
             if (has_destructive) printf("DESTRUCTIVE");
@@ -356,7 +388,8 @@ static void usage(void) {
         "wlite — SQLite schema and migration toolkit\n\n"
         "Commands:\n"
         "  init                           Create schema.wlite + migrations/\n"
-        "  migrate <db> <schema> [--force]  Apply migrations to database\n"
+        "  migrate <db> <schema> [--force] [--rename]\n"
+        "                           Apply migrations (prompts for destructive ops)\n"
         "  inspect <db> [--json]          Show database schema\n"
         "  diff <db> <schema> [--json]    Compare database against schema\n"
         "  plan <db> <schema> [--json]    Show migration plan\n"
@@ -377,9 +410,12 @@ int main(int argc, char **argv) {
     const char *cmd = argv[1];
     if (strcmp(cmd, "init") == 0) return cmd_init();
     if (strcmp(cmd, "migrate") == 0) { if (argc<4) { usage(); return 1; }
-        int force = 0;
-        for (int i=4;i<argc;i++) if (strcmp(argv[i],"--force")==0) force=1;
-        return cmd_migrate(argv[2], argv[3], force); }
+        int force = 0, rename = 0;
+        for (int i=4;i<argc;i++) {
+            if (strcmp(argv[i],"--force")==0) force=1;
+            if (strcmp(argv[i],"--rename")==0) rename=1;
+        }
+        return cmd_migrate(argv[2], argv[3], force, rename); }
     if (strcmp(cmd, "version") == 0) { printf("wlite %d.%d.%d\n", WLITE_VERSION_MAJOR, WLITE_VERSION_MINOR, WLITE_VERSION_PATCH); return 0; }
     if (strcmp(cmd, "inspect") == 0) { if (argc<3) { usage(); return 1; } return cmd_inspect(argv[2], argc>3 && strcmp(argv[3],"--json")==0); }
     if (strcmp(cmd, "diff") == 0) { if (argc<4) { usage(); return 1; } return cmd_diff(argv[2], argv[3], argc>4 && strcmp(argv[4],"--json")==0); }
