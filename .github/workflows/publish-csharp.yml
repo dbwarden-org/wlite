@@ -1,0 +1,23 @@
+name: Publish C# NuGet
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build and pack
+        run: |
+          cd bindings/csharp
+          dotnet pack -c Release -o ./nupkg
+      - name: Publish to NuGet
+        run: |
+          dotnet nuget push ./bindings/csharp/nupkg/*.nupkg \
+            --api-key ${{ secrets.NUGET_TOKEN }} \
+            --source https://api.nuget.org/v3/index.json

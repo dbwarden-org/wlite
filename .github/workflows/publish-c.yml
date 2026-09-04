@@ -1,0 +1,41 @@
+name: Publish C/C++ Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            cc: gcc
+          - os: macos-latest
+            cc: clang
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build static library
+        run: make libwlite.a CC=${{ matrix.cc }}
+      - name: Package
+        run: |
+          mkdir -p pkg/include/wlite pkg/lib
+          cp include/wlite/wlite.h pkg/include/wlite/
+          cp libwlite.a pkg/lib/
+          tar czf wlite-${{ github.ref_name }}-${{ runner.os }}-$(uname -m).tar.gz -C pkg .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}
+          path: wlite-*.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: wlite-*.tar.gz

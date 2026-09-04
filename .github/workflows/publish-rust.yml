@@ -1,0 +1,19 @@
+name: Publish Rust Crate
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build libwlite
+        run: make libwlite.a
+      - name: Publish to crates.io
+        run: cargo publish --allow-dirty
+        working-directory: bindings/rust
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_TOKEN }}

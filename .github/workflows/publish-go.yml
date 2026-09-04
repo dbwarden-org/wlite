@@ -1,0 +1,20 @@
+name: Publish Go Module
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Tag Go module
+        run: |
+          cd bindings/go
+          go mod tidy
+          git tag go/v${{ github.ref_name }}
+          git push origin go/v${{ github.ref_name }}

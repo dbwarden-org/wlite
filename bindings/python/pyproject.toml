@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "wlite"
+version = "0.2.0"
+description = "Python bindings for libwlite — a tiny SQLite schema and migration engine"
+requires-python = ">=3.10"
+license = "MIT"
+
+[project.scripts]
+wlite = "wlite._cli:main"
+
+[tool.setuptools.packages.find]
+include = ["wlite*"]

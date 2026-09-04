@@ -1,0 +1,28 @@
+model_config {
+    name "todo_app"
+    version 1
+}
+
+model Todo {
+    table "todos"
+
+    field id integer {
+        primary_key
+        autoincrement
+    }
+
+    field title text {
+        not_null
+    }
+
+    field description text
+
+    field completed boolean {
+        not_null
+        default false
+    }
+
+    field created_at integer {
+        not_null
+    }
+}

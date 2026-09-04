@@ -1,0 +1,74 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-c:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            cc: gcc
+          - os: macos-latest
+            cc: clang
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build libwlite
+        run: make libwlite.a CC=${{ matrix.cc }}
+      - name: Build CLI
+        run: make wlite-cli CC=${{ matrix.cc }}
+      - name: Smoke test
+        run: ./wlite-cli version
+
+  build-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build libwlite
+        run: make libwlite.a
+      - name: Build Rust binding
+        run: cargo build
+        working-directory: bindings/rust
+      - name: Test Rust binding
+        run: cargo test
+        working-directory: bindings/rust
+
+  build-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build libwlite
+        run: make libwlite.a
+      - name: Install Python binding
+        run: pip install -e .
+        working-directory: bindings/python
+      - name: Test Python binding
+        run: pytest
+        working-directory: bindings/python
+
+  build-go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Build libwlite
+        run: make libwlite.a
+      - name: Test Go binding
+        run: go test ./...
+        working-directory: bindings/go
+        env:
+          CGO_ENABLED: "1"
+          CGO_LDFLAGS: "-L${{ github.workspace }} -lwlite -lsqlite3"
+          CGO_CFLAGS: "-I${{ github.workspace }}/include"
