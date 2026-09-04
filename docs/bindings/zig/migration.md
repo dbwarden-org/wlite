@@ -91,10 +91,9 @@ defer db.deinit();
 try db.migrate(model);
 ```
 
-Under the hood, `migrate` calls `wlite_diff` with a null plan callback. This
-means all differences are applied automatically. If you want to inspect the
-planned changes before applying them, use the plan callback approach described
-below.
+Under the hood, `migrate` calls `wlite_diff` and applies the resulting plan
+automatically. If you want to inspect the planned changes before applying them,
+use the plan approach described below.
 
 ### Migration is idempotent
 
@@ -120,19 +119,21 @@ const c = @cImport({
     @cInclude("wlite/wlite.h"),
 });
 
-const result = c.wlite_diff(db.ptr, model.ptr, null);
+var plan: ?*c.WlPlan = null;
+const result = c.wlite_diff(db.ptr, model.ptr, &plan);
 if (result != c.WLITE_OK) {
     const msg = c.wlite_strerror(result);
     std.debug.print("diff failed: {s}\n", .{msg});
 }
+defer if (plan) |p| c.wl_plan_free(p);
 ```
 
-Passing a null callback applies all changes. To intercept the planned changes, see
-the plan section below.
+This produces a migration plan without executing it. To apply the plan, use
+`wl_apply_plan`. To inspect the steps, see the plan section below.
 
 ## Plan
 
-A plan callback lets you inspect each migration step before it is executed. This
+A migration plan lets you inspect each step before it is executed. This
 is useful for logging, auditing, or selectively applying changes.
 
 ```zig
@@ -140,40 +141,63 @@ const c = @cImport({
     @cInclude("wlite/wlite.h"),
 });
 
-fn planCallback(step: [*:0]const u8, arg: ?*anyopaque) callconv(.C) void {
-    _ = arg;
-    const step_str = std.mem.span(step);
-    std.debug.print("Migration step: {s}\n", .{step_str});
-}
+// Introspect the current database schema
+var current = c.wl_schema_inspect(db.ptr, null);
+defer if (current) |s| c.wl_schema_free(s);
 
-const result = c.wlite_plan(db.ptr, model.ptr, planCallback, null);
-if (result != c.WLITE_OK) {
-    const msg = c.wlite_strerror(result);
-    std.debug.print("plan failed: {s}\n", .{msg});
+// Parse the desired schema from the model
+var desired = c.wl_schema_load("schema.wlite", null);
+defer if (desired) |s| c.wl_schema_free(s);
+
+// Generate the migration plan
+var plan: ?*c.WlPlan = null;
+var err: ?*c.wlite_error = null;
+plan = c.wl_plan_migration(current, desired, &err);
+defer if (plan) |p| c.wl_plan_free(p);
+
+if (plan) |p| {
+    const count = c.wlite_plan_count(p);
+    std.debug.print("Migration plan has {d} steps\n", .{count});
+
+    for (0..count) |i| {
+        const step = p.*.steps[i];
+        std.debug.print("Step {d}: {s}\n", .{ i, step.sql });
+    }
 }
 ```
 
-The callback receives each DDL statement as a null-terminated C string. You can
-log it, store it, or skip it by returning without applying.
+The plan contains an array of steps, each with a `sql` field containing the DDL
+statement to execute.
 
-### Plan with user data
+### Inspecting plan steps
 
-Pass an opaque pointer through the callback for context.
+Iterate over the plan steps to examine each planned operation:
 
 ```zig
-const LogContext = struct {
-    count: usize,
-};
+const c = @cImport({
+    @cInclude("wlite/wlite.h"),
+});
 
-fn planCallback(step: [*:0]const u8, arg: ?*anyopaque) callconv(.C) void {
-    const ctx: *LogContext = @ptrCast(@alignCast(arg orelse return));
-    ctx.count += 1;
-    const step_str = std.mem.span(step);
-    std.debug.print("[{d}] {s}\n", .{ ctx.count, step_str });
+var current = c.wl_schema_inspect(db.ptr, null);
+defer if (current) |s| c.wl_schema_free(s);
+
+var desired = c.wl_schema_load("schema.wlite", null);
+defer if (desired) |s| c.wl_schema_free(s);
+
+var plan: ?*c.WlPlan = null;
+plan = c.wl_plan_migration(current, desired, null);
+defer if (plan) |p| c.wl_plan_free(p);
+
+if (plan) |p| {
+    const count = c.wlite_plan_count(p);
+    for (0..count) |i| {
+        const step = p.*.steps[i];
+        const safety = step.safety;
+        if (safety == c.WL_SAFETY_DESTRUCTIVE) {
+            std.debug.print("WARNING: destructive step: {s}\n", .{step.sql});
+        }
+    }
 }
-
-var ctx = LogContext{ .count = 0 };
-const result = c.wlite_plan(db.ptr, model.ptr, planCallback, &ctx);
 ```
 
 ## Check
@@ -187,7 +211,20 @@ const c = @cImport({
     @cInclude("wlite/wlite.h"),
 });
 
-const result = c.wlite_check(db.ptr, model.ptr);
+// Introspect the current database schema
+var current = c.wl_schema_inspect(db.ptr, null);
+defer if (current) |s| c.wl_schema_free(s);
+
+// Load the expected schema from the model
+var expected = c.wl_schema_load("schema.wlite", null);
+defer if (expected) |s| c.wl_schema_free(s);
+
+// Verify the schemas match
+var diff: ?*c.WlDiff = null;
+var err: ?*c.wlite_error = null;
+const result = c.wl_schema_verify(db.ptr, expected, &diff, &err);
+defer if (diff) |d| c.wl_diff_free(d);
+
 if (result == c.WLITE_OK) {
     std.debug.print("Schema is up to date\n", .{});
 } else {
@@ -214,7 +251,10 @@ test "schema matches model" {
         @cInclude("wlite/wlite.h"),
     });
 
-    const result = c.wlite_check(db.ptr, model.ptr);
+    var diff: ?*c.WlDiff = null;
+    const result = c.wl_schema_verify(db.ptr, model.ptr, &diff, null);
+    defer if (diff) |d| c.wl_diff_free(d);
+
     try std.testing.expectEqual(c.WLITE_OK, result);
 }
 ```
@@ -229,17 +269,24 @@ const c = @cImport({
     @cInclude("wlite/wlite.h"),
 });
 
-var snapshot: ?*c.wlite_snapshot = null;
-const result = c.wlite_snapshot(db.ptr, &snapshot);
-if (result != c.WLITE_OK) {
-    const msg = c.wlite_strerror(result);
+var snapshot: ?*c.WlSchema = null;
+var err: ?*c.wlite_error = null;
+snapshot = c.wl_schema_inspect(db.ptr, &err);
+if (snapshot == null) {
+    const msg = c.wlite_strerror(err.?.code);
     std.debug.print("snapshot failed: {s}\n", .{msg});
     return;
 }
-defer if (snapshot) |s| c.wlite_snapshot_free(s);
+defer if (snapshot) |s| c.wl_schema_free(s);
 
 // Compare snapshot against a model
-const cmp = c.wlite_snapshot_diff(snapshot.?, model.ptr);
+var expected = c.wl_schema_load("schema.wlite", null);
+defer if (expected) |e| c.wl_schema_free(e);
+
+var diff: ?*c.WlDiff = null;
+const cmp = c.wl_schema_verify(db.ptr, expected, &diff, null);
+defer if (diff) |d| c.wl_diff_free(d);
+
 if (cmp == c.WLITE_OK) {
     std.debug.print("Snapshot matches model\n", .{});
 }
@@ -255,10 +302,16 @@ const c = @cImport({
     @cInclude("wlite/wlite.h"),
 });
 
-var hash_buf: [65]u8 = undefined; // SHA-256 hex string + null
-const result = c.wlite_hash(db.ptr, &hash_buf, hash_buf.len);
-if (result == c.WLITE_OK) {
-    std.debug.print("Schema hash: {s}\n", .{std.mem.span(@as([*:0]const u8, @ptrCast(&hash_buf)))});
+// Introspect the database schema
+var schema = c.wl_schema_inspect(db.ptr, null);
+defer if (schema) |s| c.wl_schema_free(s);
+
+// Hash the schema (returns an allocated string)
+const hash = c.wl_schema_hash(schema);
+defer if (hash) |h| c.wlite_free(@ptrCast(h));
+
+if (hash) |h| {
+    std.debug.print("Schema hash: {s}\n", .{std.span(@as([*:0]const u8, @ptrCast(h)))});
 }
 ```
 
@@ -266,18 +319,24 @@ if (result == c.WLITE_OK) {
 
 ```zig
 fn schemasMatch(db1: wlite.Database, db2: wlite.Database) bool {
-    var h1: [65]u8 = undefined;
-    var h2: [65]u8 = undefined;
-
     const c = @cImport({
         @cInclude("wlite/wlite.h"),
     });
 
-    const r1 = c.wlite_hash(db1.ptr, &h1, h1.len);
-    const r2 = c.wlite_hash(db2.ptr, &h2, h2.len);
+    var s1 = c.wl_schema_inspect(db1.ptr, null);
+    defer if (s1) |s| c.wl_schema_free(s);
 
-    if (r1 != c.WLITE_OK or r2 != c.WLITE_OK) return false;
-    return std.mem.eql(u8, std.span(@as([*:0]const u8, @ptrCast(&h1))), std.span(@as([*:0]const u8, @ptrCast(&h2))));
+    var s2 = c.wl_schema_inspect(db2.ptr, null);
+    defer if (s2) |s| c.wl_schema_free(s);
+
+    const h1 = c.wl_schema_hash(s1);
+    defer if (h1) |h| c.wlite_free(@ptrCast(h));
+
+    const h2 = c.wl_schema_hash(s2);
+    defer if (h2) |h| c.wlite_free(@ptrCast(h));
+
+    if (h1 == null or h2 == null) return false;
+    return std.mem.eql(u8, std.span(@as([*:0]const u8, @ptrCast(h1))), std.span(@as([*:0]const u8, @ptrCast(h2))));
 }
 ```
 
@@ -349,7 +408,10 @@ pub fn main() !void {
         @cInclude("wlite/wlite.h"),
     });
 
-    const check_result = c.wlite_check(db.ptr, model.ptr);
+    var diff: ?*c.WlDiff = null;
+    const check_result = c.wl_schema_verify(db.ptr, model.ptr, &diff, null);
+    defer if (diff) |d| c.wl_diff_free(d);
+
     if (check_result != c.WLITE_OK) {
         std.debug.print("Schema drift detected after migration\n", .{});
         return error.WliteError;

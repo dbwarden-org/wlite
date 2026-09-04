@@ -553,7 +553,7 @@ For performance-sensitive applications, you can pre-compile models. Compiled mod
 using Wlite;
 
 // Load a compiled model
-using var model = Model.LoadCompiled("app.wlitec");
+using var model = Model.LoadCompiled("app.wlitem");
 
 // Use it like a regular model
 using var db = Database.Open("app.db");
@@ -566,10 +566,10 @@ db.Migrate(model);
 using Wlite;
 
 // Compile a model file
-Model.Compile("app.wlite", "app.wlitec");
+Model.Compile("app.wlite", "app.wlitem");
 
 // Load the compiled version
-using var model = Model.LoadCompiled("app.wlitec");
+using var model = Model.LoadCompiled("app.wlitem");
 ```
 
 ### Compiled model in build pipeline
@@ -588,7 +588,7 @@ class ModelManager : IDisposable
     public ModelManager(string modelPath)
     {
         _modelPath = modelPath;
-        _compiledPath = Path.ChangeExtension(modelPath, ".wlitec");
+        _compiledPath = Path.ChangeExtension(modelPath, ".wlitem");
 
         if (File.Exists(_compiledPath))
         {

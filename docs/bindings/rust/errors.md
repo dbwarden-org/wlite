@@ -24,7 +24,6 @@ pub enum Error {
     NotFound,
     Busy,
     Transaction,
-    Range,
 }
 ```
 
@@ -43,7 +42,6 @@ pub enum Error {
 | `NotFound` | Resource not found | Missing table, column, or file |
 | `Busy` | Database locked | Another connection holds a lock |
 | `Transaction` | Transaction error | Invalid transaction state |
-| `Range` | Range error | Value out of expected range |
 
 ### Display implementation
 

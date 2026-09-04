@@ -79,8 +79,28 @@ static int cmd_diff(const char *dbpath, const char *schemapath, int json_mode) {
     WlDiff *diff = wl_schema_diff(db_schema, wl_schema, &err);
     wl_schema_free(db_schema); wl_schema_free(wl_schema);
     if (!diff) { fprintf(stderr, "Diff failed\n"); wlite_error_free(err); return 1; }
-    if (json_mode) printf("{\"changes\": %zu}\n", diff->entry_count);
-    else if (diff->entry_count == 0) printf("Schemas are identical.\n");
+    if (json_mode) {
+        const char *op_names[] = {
+            "ADD_TABLE", "DROP_TABLE", "RENAME_TABLE",
+            "ADD_COLUMN", "DROP_COLUMN", "RENAME_COLUMN", "ALTER_COLUMN",
+            "ADD_INDEX", "DROP_INDEX", "ALTER_INDEX",
+            "ADD_CHECK", "DROP_CHECK", "ADD_UNIQUE", "DROP_UNIQUE",
+            "ADD_FKEY", "DROP_FKEY", "ALTER_TABLE_OPTIONS", "ALTER_VIEW",
+            "ALTER_TRIGGER", "REBUILD_TABLE"
+        };
+        const char *sn[] = {"SAFE", "REBUILD", "DESTRUCTIVE", "CONDITIONAL", "IRREVERSIBLE"};
+        printf("{\"change_count\": %zu, \"changes\": [", diff->entry_count);
+        for (size_t i = 0; i < diff->entry_count; i++) {
+            WlDiffEntry *e = &diff->entries[i];
+            if (i > 0) printf(",");
+            printf("{\"op\": \"%s\", \"table\": \"%s\"", op_names[e->op], e->table ? e->table : "");
+            if (e->object) printf(", \"object\": \"%s\"", e->object);
+            printf(", \"safety\": \"%s\"", sn[e->safety]);
+            if (e->detail) printf(", \"detail\": \"%s\"", e->detail);
+            printf("}");
+        }
+        printf("]}\n");
+    } else if (diff->entry_count == 0) printf("Schemas are identical.\n");
     else print_diff_summary(diff);
     int rc = (diff->entry_count > 0) ? 1 : 0;
     wl_diff_free(diff); return rc;
@@ -99,8 +119,25 @@ static int cmd_plan(const char *dbpath, const char *schemapath, int json_mode) {
     WlPlan *plan = wl_plan_migration(db_schema, wl_schema, &err);
     wl_schema_free(db_schema); wl_schema_free(wl_schema);
     if (!plan) { fprintf(stderr, "Plan failed: %s\n", err ? err->message : "?"); wlite_error_free(err); return 1; }
-    if (json_mode) printf("{\"steps\": %zu}\n", plan->step_count);
-    else {
+    if (json_mode) {
+        const char *op_names[] = {"CREATE_TABLE","DROP_TABLE","RENAME_TABLE","ADD_COLUMN","DROP_COLUMN",
+            "RENAME_COLUMN","ALTER_COLUMN","REBUILD_TABLE","CREATE_INDEX","DROP_INDEX",
+            "ADD_CHECK","DROP_CHECK","ADD_UNIQUE","DROP_UNIQUE","ADD_FKEY","DROP_FKEY","CUSTOM"};
+        const char *sn[] = {"SAFE", "REBUILD", "DESTRUCTIVE", "CONDITIONAL", "IRREVERSIBLE"};
+        printf("{\"step_count\": %zu, \"steps\": [", plan->step_count);
+        for (size_t i = 0; i < plan->step_count; i++) {
+            WlPlanStep *s = &plan->steps[i];
+            if (i > 0) printf(",");
+            printf("{\"type\": \"%s\"", op_names[s->op]);
+            if (s->table) printf(", \"table\": \"%s\"", s->table);
+            printf(", \"safety\": \"%s\"", sn[s->safety]);
+            if (s->sql) printf(", \"sql\": \"%s\"", s->sql);
+            if (s->detail) printf(", \"detail\": \"%s\"", s->detail);
+            if (s->is_non_atomic) printf(", \"non_atomic\": true");
+            printf("}");
+        }
+        printf("]}\n");
+    } else {
         printf("PLAN (%zu steps)\n\n", plan->step_count);
         const char *op_names[] = {"CREATE TABLE","DROP TABLE","RENAME TABLE","ADD COLUMN","DROP COLUMN",
             "RENAME COLUMN","ALTER COLUMN","REBUILD TABLE","CREATE INDEX","DROP INDEX",
@@ -149,6 +186,19 @@ static int cmd_generate(const char *dbpath, const char *schemapath, const char *
         if (plan->steps[i-1].rollback_sql) fprintf(f, "%s\n\n", plan->steps[i-1].rollback_sql);
     fclose(f); printf("Created %s\n", filename);
     wl_plan_free(plan); return 0;
+}
+
+static int cmd_migrate(const char *dbpath, const char *schemapath) {
+    wlite_db *db = open_db(dbpath);
+    if (!db) { fprintf(stderr, "Cannot open %s\n", dbpath); return 1; }
+    wlite_model *model = NULL;
+    wlite_result rc = wlite_model_load_file(schemapath, &model);
+    if (rc != WLITE_OK) { fprintf(stderr, "Schema parse failed: %s\n", wlite_strerror(rc)); wlite_close(db); return 1; }
+    rc = wlite_migrate(db, model);
+    wlite_model_free(model);
+    if (rc != WLITE_OK) { fprintf(stderr, "Migration failed: %s\n", wlite_strerror(rc)); wlite_close(db); return 1; }
+    printf("Migration applied successfully.\n");
+    wlite_close(db); return 0;
 }
 
 static int cmd_rollback(const char *dbpath, int steps) {
@@ -206,43 +256,13 @@ static int cmd_format(const char *schemapath) {
     wl_schema_write_dsl(schema, &stdout_writer, NULL); wl_schema_free(schema); return 0;
 }
 
-static int compile_write_cb(wlite_writer *wr, const char *data, size_t len) {
-    return (int)fwrite(data, 1, len, (FILE *)wr->ctx);
-}
-
 static int cmd_compile(const char *schemapath, const char *outpath) {
-    wlite_model *model = NULL;
-    wlite_result rc = wlite_model_load_file(schemapath, &model);
-    if (rc != WLITE_OK) { fprintf(stderr, "Parse failed: %s\n", wlite_strerror(rc)); return 1; }
-    rc = wlite_model_validate(model);
-    if (rc != WLITE_OK) { fprintf(stderr, "Validation failed\n"); wlite_model_free(model); return 1; }
-    FILE *f = fopen(outpath, "w");
-    if (!f) { perror("open output"); wlite_model_free(model); return 1; }
-    wlite_writer writer = { .ctx = f, .write = compile_write_cb };
-    /* We need to access the internal schema to write JSON.
-       Use the model's table introspection to write manually. */
-    fprintf(f, "{\n  \"version\": 1,\n  \"tables\": [\n");
-    size_t tc = wlite_model_table_count(model);
-    for (size_t i = 0; i < tc; i++) {
-        const wlite_table *t = wlite_model_table_at(model, i);
-        fprintf(f, "    {\"name\": \"%s\", \"fields\": [", wlite_table_name(t));
-        size_t fc = wlite_table_field_count(t);
-        for (size_t j = 0; j < fc; j++) {
-            const wlite_field *fld = wlite_table_field_at(t, j);
-            if (j > 0) fprintf(f, ", ");
-            fprintf(f, "{\"name\": \"%s\"", wlite_field_name(fld));
-            fprintf(f, ", \"nullable\": %s", wlite_field_is_nullable(fld) ? "true" : "false");
-            fprintf(f, ", \"primary_key\": %s", wlite_field_is_primary_key(fld) ? "true" : "false");
-            fprintf(f, ", \"unique\": %s", wlite_field_is_unique(fld) ? "true" : "false");
-            fprintf(f, "}");
-        }
-        fprintf(f, "]");
-        if (i < tc - 1) fprintf(f, ",");
-        fprintf(f, "\n");
-    }
-    fprintf(f, "  ]\n}\n");
-    fclose(f);
-    wlite_model_free(model);
+    wlite_error *err = NULL;
+    WlSchema *schema = wl_schema_load(schemapath, &err);
+    if (!schema) { fprintf(stderr, "Parse failed: %s\n", err ? err->message : "?"); wlite_error_free(err); return 1; }
+    int rc = wl_model_compile(schema, outpath);
+    wl_schema_free(schema);
+    if (rc != 0) { fprintf(stderr, "Compile failed\n"); return 1; }
     printf("Compiled %s -> %s\n", schemapath, outpath);
     return 0;
 }
@@ -263,9 +283,7 @@ static int cmd_query(const char *dbpath, const char *sql, const char *format) {
         printf("\n");
     }
     /* Print rows */
-    int rows = 0;
     while (wlite_step(stmt) == WLITE_OK) {
-        rows++;
         if (strcmp(format, "json") == 0) {
             printf("{");
             for (int i = 0; i < cols; i++) {
@@ -302,6 +320,7 @@ static void usage(void) {
         "wlite — SQLite schema and migration toolkit\n\n"
         "Commands:\n"
         "  init                           Create schema.wlite + migrations/\n"
+        "  migrate <db> <schema>          Apply migrations to database\n"
         "  inspect <db> [--json]          Show database schema\n"
         "  diff <db> <schema> [--json]    Compare database against schema\n"
         "  plan <db> <schema> [--json]    Show migration plan\n"
@@ -309,7 +328,7 @@ static void usage(void) {
         "  rollback <db> [--steps N]      Rollback migrations\n"
         "  status <db>                    Show schema hash\n"
         "  check <db> <schema>            Verify schema matches\n"
-        "  compile <schema> [-o file]     Compile .wlite to JSON\n"
+        "  compile <schema> [-o file]     Compile .wlite to .wlitem binary\n"
         "  query <db> <sql> [--json]      Execute SQL query\n"
         "  snapshot <db> [--json]         Export schema\n"
         "  hash <db>                      Show schema hash\n"
@@ -321,6 +340,7 @@ int main(int argc, char **argv) {
     if (argc < 2) { usage(); return 1; }
     const char *cmd = argv[1];
     if (strcmp(cmd, "init") == 0) return cmd_init();
+    if (strcmp(cmd, "migrate") == 0) { if (argc<4) { usage(); return 1; } return cmd_migrate(argv[2], argv[3]); }
     if (strcmp(cmd, "version") == 0) { printf("wlite %d.%d.%d\n", WLITE_VERSION_MAJOR, WLITE_VERSION_MINOR, WLITE_VERSION_PATCH); return 0; }
     if (strcmp(cmd, "inspect") == 0) { if (argc<3) { usage(); return 1; } return cmd_inspect(argv[2], argc>3 && strcmp(argv[3],"--json")==0); }
     if (strcmp(cmd, "diff") == 0) { if (argc<4) { usage(); return 1; } return cmd_diff(argv[2], argv[3], argc>4 && strcmp(argv[4],"--json")==0); }

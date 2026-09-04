@@ -29,7 +29,7 @@ wlite init
 
 This creates two things in the current directory:
 
-- `schema.wlite` (the model file, seeded with a `model_config` block)
+- `schema.wlite` (the model file, seeded with a `database` block)
 - `migrations/` directory (for generated SQL files)
 
 Output:
@@ -49,9 +49,9 @@ migrations/ already exists, skipping
 The seeded `schema.wlite` looks like this:
 
 ```
-model_config {
-    name "my_application"
-    version 1
+# wlite schema
+
+database {
 }
 ```
 
@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS users (
 If the database already has the schema:
 
 ```
-No differences found.
+Schemas are identical.
 ```
 
 If there are column differences:
@@ -159,10 +159,21 @@ wlite diff mydb.db schema.wlite --json
 
 ```json
 {
-  "status": "migrations_needed",
-  "count": 1,
-  "statements": [
-    "CREATE TABLE IF NOT EXISTS users (...)"
+  "change_count": 2,
+  "changes": [
+    {
+      "op": "ADD_TABLE",
+      "table": "users",
+      "safety": "SAFE",
+      "detail": "create table"
+    },
+    {
+      "op": "ADD_INDEX",
+      "table": "users",
+      "object": "idx_users_email",
+      "safety": "SAFE",
+      "detail": "CREATE INDEX idx_users_email ON users (email)"
+    }
   ]
 }
 ```
@@ -171,11 +182,20 @@ When no differences are found:
 
 ```json
 {
-  "status": "up_to_date",
-  "count": 0,
-  "statements": []
+  "change_count": 0,
+  "changes": []
 }
 ```
+
+Each change object contains:
+
+| Field | Description |
+|-------|-------------|
+| `op` | Operation type: `ADD_TABLE`, `DROP_TABLE`, `RENAME_TABLE`, `ADD_COLUMN`, `DROP_COLUMN`, `RENAME_COLUMN`, `ALTER_COLUMN`, `ADD_INDEX`, `DROP_INDEX`, `ALTER_INDEX`, `ADD_CHECK`, `DROP_CHECK`, `ADD_UNIQUE`, `DROP_UNIQUE`, `ADD_FKEY`, `DROP_FKEY`, `ALTER_TABLE_OPTIONS`, `ALTER_VIEW`, `ALTER_TRIGGER`, `REBUILD_TABLE` |
+| `table` | The affected table name |
+| `object` | The affected sub-object (column, index, etc.), if applicable |
+| `safety` | One of `SAFE`, `REBUILD`, `DESTRUCTIVE`, `CONDITIONAL`, `IRREVERSIBLE` |
+| `detail` | Human-readable description of the change |
 
 The JSON format is useful for scripting and CI pipelines where you need to
 inspect the diff programmatically.
@@ -196,12 +216,6 @@ Output on success:
 Migration applied successfully.
 ```
 
-Output when already up to date:
-
-```
-Schema is up to date.
-```
-
 Output on error:
 
 ```
@@ -217,13 +231,24 @@ transaction rolls back and the database is unchanged.
 wlite check mydb.db schema.wlite
 ```
 
-This verifies that the database schema matches the model. It exits with code 0
-if they match, 1 if they differ. No output is printed on success.
+This verifies that the database schema matches the model. It prints a result
+message and exits with code 0 if they match, 1 if they differ.
 
-```bash
-# Check exit code
-wlite check mydb.db schema.wlite
-echo $?  # 0 = matches, 1 = differs
+On success:
+
+```
+Schema check: OK
+```
+
+On failure:
+
+```
+Schema check: FAILED
+
+  ADD TABLE             users  [SAFE]
+  ADD COLUMN            users.bio  [SAFE]
+
+2 change(s)
 ```
 
 This is the primary command for CI validation. It does not modify the database.
@@ -235,7 +260,8 @@ It only reads the live schema and compares it against the model.
 wlite snapshot mydb.db
 ```
 
-This exports the full schema as JSON to stdout:
+`wlite snapshot` is an alias for `wlite inspect`. Both commands export the full
+schema as JSON to stdout:
 
 ```json
 {
@@ -282,7 +308,9 @@ is already JSON.
 wlite inspect mydb.db
 ```
 
-Prints the full schema of the database in human-readable form:
+`wlite inspect` is the canonical form of the schema inspection command. `wlite
+snapshot` is an alias that behaves identically. Prints the full schema of the
+database in human-readable form:
 
 ```
 Table: users
@@ -326,9 +354,10 @@ wlite plan mydb.db schema.wlite
 Shows a human-readable migration plan without executing anything:
 
 ```
-Migration plan:
-  CREATE TABLE users (...)
-  CREATE INDEX users_email ON users (email)
+PLAN (2 steps)
+
+  1. CREATE TABLE users — create table
+  2. CREATE INDEX idx_users_email ON users (email) — create index
 ```
 
 ### JSON output
@@ -341,11 +370,34 @@ wlite plan mydb.db schema.wlite --json
 {
   "step_count": 2,
   "steps": [
-    {"type": "create_table", "table": "users", "sql": "CREATE TABLE users (...)"},
-    {"type": "create_index", "index": "users_email", "sql": "CREATE INDEX users_email ON users (email)"}
+    {
+      "type": "CREATE_TABLE",
+      "table": "users",
+      "safety": "SAFE",
+      "sql": "CREATE TABLE users (...)",
+      "detail": "create table"
+    },
+    {
+      "type": "CREATE_INDEX",
+      "table": "users",
+      "safety": "SAFE",
+      "sql": "CREATE INDEX idx_users_email ON users (email)",
+      "detail": "create index"
+    }
   ]
 }
 ```
+
+Each step object contains:
+
+| Field | Description |
+|-------|-------------|
+| `type` | Step type: `CREATE_TABLE`, `DROP_TABLE`, `RENAME_TABLE`, `ADD_COLUMN`, `DROP_COLUMN`, `RENAME_COLUMN`, `ALTER_COLUMN`, `REBUILD_TABLE`, `CREATE_INDEX`, `DROP_INDEX`, `ADD_CHECK`, `DROP_CHECK`, `ADD_UNIQUE`, `DROP_UNIQUE`, `ADD_FKEY`, `DROP_FKEY`, `CUSTOM` |
+| `table` | The affected table name, if applicable |
+| `safety` | One of `SAFE`, `REBUILD`, `DESTRUCTIVE`, `CONDITIONAL`, `IRREVERSIBLE` |
+| `sql` | The SQL statement to execute, if applicable |
+| `detail` | Human-readable description of the step |
+| `non_atomic` | `true` if the step requires a table rebuild (non-atomic) |
 
 The plan shows what wlite would do without doing it. Use this to review
 migrations before applying them.
@@ -357,18 +409,36 @@ wlite generate mydb.db schema.wlite
 ```
 
 Generates the migration SQL and writes it to a file in the `migrations/`
-directory. The file is timestamped with a sequential index:
+directory. The file is named with a sequential index and a slug derived from the
+migration name:
 
 ```
-migrations/001_20260904120000_upgrade.sql
+migrations/0001_migration.sql
 ```
+
+You can provide a custom name with `--name`:
+
+```bash
+wlite generate mydb.db schema.wlite --name "add users table"
+```
+
+This produces:
+
+```
+migrations/0001_add_users_table.sql
+```
+
+The name is slugified: spaces and hyphens become underscores, and non-alphanumeric
+characters are stripped. The sequential index is always `0001` for the first
+migration.
 
 Contents of the generated file:
 
 ```sql
 -- wlite migration
--- generated: 2026-09-04T12:00:00Z
--- checksum: a1b2c3d4e5f6g7h8
+-- name: add users table
+
+-- upgrade
 
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -376,6 +446,10 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- rollback
+
+DROP TABLE IF EXISTS users;
 ```
 
 Generated files are plain SQL. You can review them, commit them to version
@@ -389,7 +463,11 @@ wlite compile schema.wlite
 ```
 
 Compiles the `.wlite` model to a `.wlitem` binary file. The output goes to
-`schema.wlitem` by default.
+`schema.wlitem` by default. You can override the output path with `-o`:
+
+```bash
+wlite compile schema.wlite -o custom.wlitem
+```
 
 ### JSON output
 
@@ -502,7 +580,18 @@ wlite format schema.wlite
 ```
 
 Formats the model file with consistent indentation and ordering. This does not
-change semantics, only whitespace. The formatted file is written back in place.
+change semantics, only whitespace. The formatted output is written to stdout,
+not back into the file. Redirect to save:
+
+```bash
+wlite format schema.wlite > schema.wlite
+```
+
+Or write to a temporary file and replace:
+
+```bash
+wlite format schema.wlite > schema.wlite.tmp && mv schema.wlite.tmp schema.wlite
+```
 
 ## The .wlitem compiled model format
 
@@ -691,10 +780,10 @@ Several wlite commands support the `--json` flag for structured output:
 | Command | --json behavior |
 |---------|-----------------|
 | `wlite inspect <db>` | JSON schema export |
-| `wlite diff <db> <schema>` | JSON diff with statements array |
-| `wlite plan <db> <schema>` | JSON plan with step details |
+| `wlite snapshot <db>` | JSON schema export (alias for inspect) |
+| `wlite diff <db> <schema>` | JSON diff with changes array |
+| `wlite plan <db> <schema>` | JSON plan with steps array |
 | `wlite query <db> <sql>` | JSON rows and columns |
-| `wlite snapshot <db>` | JSON schema export (same as inspect) |
 | `wlite compile <schema>` | JSON compilation metadata |
 
 The `--json` flag must appear after all positional arguments:
@@ -922,15 +1011,16 @@ fi
 Generated migration files follow this pattern:
 
 ```
-migrations/NNN_YYYYMMDDHHMMSS_upgrade.sql
+migrations/NNNN_<slug>.sql
 ```
 
-- `NNN` is a zero-padded sequential index (001, 002, 003)
-- `YYYYMMDDHHMMSS` is the timestamp of generation
-- `upgrade` indicates the direction (wlite only generates upgrade migrations)
+- `NNNN` is a zero-padded sequential index (0001, 0002, 0003)
+- `<slug>` is derived from the migration name with spaces and hyphens replaced
+  by underscores and non-alphanumeric characters stripped
 
-The naming is deterministic. Running `wlite generate` twice with the same
-diff produces files with different timestamps but the same SQL content.
+For example, `--name "add users table"` produces `0001_add_users_table.sql`.
+The default name (when `--name` is omitted) is `migration`, producing
+`0001_migration.sql`.
 
 ## Error handling
 

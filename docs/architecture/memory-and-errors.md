@@ -134,18 +134,23 @@ For detailed error information, libwlite populates a `wlite_error` struct direct
 
 ```c
 wlite_error *err = NULL;
-wlite_result r = wlite_migrate(db, model, &err);
+wlite_result r = wlite_migrate(db, model);
 if (r != WLITE_OK) {
     fprintf(stderr, "Migration failed: %s\n", wlite_strerror(r));
+}
+```
+
+Some functions also accept an optional error pointer for more detailed diagnostics:
+
+```c
+wlite_error *err = NULL;
+WlSchema *schema = wl_schema_load("schema.wlite", &err);
+if (!schema) {
     if (err) {
-        fprintf(stderr, "Code: %d\n", err->code);
-        fprintf(stderr, "Message: %s\n", err->message);
-        fprintf(stderr, "Subsystem: %s\n", err->subsystem);
-        fprintf(stderr, "Object: %s\n", err->object);
-        fprintf(stderr, "SQLite code: %d\n", err->sqlite_code);
-        fprintf(stderr, "Line: %d\n", err->line);
+        fprintf(stderr, "Parse error: %s\n", err->message);
         wlite_error_free(err);
     }
+    return 1;
 }
 ```
 

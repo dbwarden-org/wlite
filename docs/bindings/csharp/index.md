@@ -59,7 +59,7 @@ Or add the package reference directly to your project file:
     <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="wlite" Version="0.1.*" />
+    <PackageReference Include="wlite" Version="0.2.0" />
   </ItemGroup>
 </Project>
 ```

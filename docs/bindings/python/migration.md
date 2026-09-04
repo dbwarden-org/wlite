@@ -93,15 +93,17 @@ db = wlite.Database.open_readonly("archive.db")
 
 A read-only connection cannot execute DDL or DML. Use it for queries where you want to prevent accidental modification.
 
-### Opening with a specific journal mode
+### Opening with options
+
+You can pass additional options when opening a database:
 
 ```python
 import wlite
 
-db = wlite.Database.open("app.db", journal_mode="wal")
+db = wlite.Database.open("app.db")
 ```
 
-You can pass `journal_mode` as a keyword argument to set the SQLite journal mode at open time. Common values are `delete`, `truncate`, `persist`, `memory`, and `wal`.
+Consult the API reference for all available options.
 
 ## Migrating databases
 
@@ -122,24 +124,24 @@ This is idempotent. Running it multiple times with the same model produces no ch
 
 ### Migration with dry run
 
-To see what SQL would be executed without actually running it:
+To see what SQL would be executed without actually running it, use the `plan` method instead:
 
 ```python
 import wlite
 
 model = wlite.Model.load("app.wlite")
 db = wlite.Database.open("app.db")
-plan = db.migrate(model, dry_run=True)
+plan = db.plan(model)
 
 print("SQL that would be executed:")
-for sql in plan.statements:
-    print(f"  {sql}")
+for step in plan.steps:
+    print(f"  {step.sql}")
 
-print(f"Total statements: {len(plan.statements)}")
+print(f"Total steps: {len(plan.steps)}")
 db.close()
 ```
 
-The `dry_run` parameter returns a `MigrationPlan` object containing the list of SQL statements that would be executed.
+The `plan` method returns a `MigrationPlan` object containing the list of steps that would be executed.
 
 ### Migration with logging
 
@@ -377,11 +379,14 @@ print(f"Model hash: {schema_hash}")
 
 ### Hash the database schema
 
+To hash the current database schema, first introspect it into a schema object, then hash that:
+
 ```python
 import wlite
 
 db = wlite.Database.open("app.db")
-db_hash = db.schema_hash()
+schema = db.introspect()
+db_hash = schema.hash()
 print(f"Database schema hash: {db_hash}")
 db.close()
 ```
@@ -390,13 +395,13 @@ db.close()
 
 ```python
 import wlite
-import hashlib
 
 model = wlite.Model.load("app.wlite")
 expected_hash = model.hash()
 
 db = wlite.Database.open("app.db")
-actual_hash = db.schema_hash()
+schema = db.introspect()
+actual_hash = schema.hash()
 
 if actual_hash == expected_hash:
     print("Schema is up to date")

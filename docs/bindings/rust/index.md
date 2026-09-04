@@ -15,7 +15,7 @@ Add the `wlite` crate to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-wlite = "0.1"
+wlite = "0.2.0"
 ```
 
 For the latest development version, you can point to the git repository:
@@ -332,7 +332,6 @@ fn describe_error(err: &Error) {
         Error::NotFound => println!("Not found"),
         Error::Busy => println!("Database is locked"),
         Error::Transaction => println!("Transaction error"),
-        Error::Range => println!("Range error"),
     }
 }
 ```

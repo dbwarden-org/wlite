@@ -62,12 +62,17 @@ The `WliteResult` enum defines all possible error codes returned by the native l
 | Code | Constant | Meaning |
 |------|----------|---------|
 | 0 | `WliteResult.OK` | Success, operation completed without error |
-| -1 | `WliteResult.Error` | General or unspecified error |
-| -2 | `WliteResult.NotFound` | Requested resource does not exist |
-| -3 | `WliteResult.Memory` | Memory allocation failed |
-| -4 | `WliteResult.Io` | I/O error reading or writing files |
-| -5 | `WliteResult.Corrupt` | Database or schema file is corrupted |
-| -6 | `WliteResult.Range` | Value out of valid range |
+| 1 | `WliteResult.Error` | General or unspecified error |
+| 2 | `WliteResult.InvalidArgument` | Null pointer or invalid parameter |
+| 3 | `WliteResult.OutOfMemory` | Memory allocation failed |
+| 4 | `WliteResult.IoError` | I/O error reading or writing files |
+| 5 | `WliteResult.ParseError` | Schema parse error (malformed `.wlite` source) |
+| 6 | `WliteResult.ModelError` | Schema model error (invalid table, missing field) |
+| 7 | `WliteResult.SqliteError` | SQLite returned an error |
+| 8 | `WliteResult.ConstraintError` | UNIQUE, CHECK, or FOREIGN KEY constraint violation |
+| 9 | `WliteResult.NotFound` | Requested table, column, or resource not found |
+| 10 | `WliteResult.Busy` | Database is locked by another connection |
+| 11 | `WliteResult.TransactionError` | Transaction failed or is in an invalid state |
 
 ### OK (0)
 
@@ -79,7 +84,7 @@ using var db = Database.Open("app.db");
 // Result is implicitly OK
 ```
 
-### Error (-1)
+### Error (1)
 
 A general error occurred. This is a catch-all for errors that do not have a specific code. Check the exception message for details.
 
@@ -95,9 +100,123 @@ catch (WliteException ex) when (ex.Result == WliteResult.Error)
 }
 ```
 
-### NotFound (-2)
+### InvalidArgument (2)
 
-A requested resource was not found. This can occur when trying to access a table, column, or file that does not exist.
+A null pointer or invalid parameter was passed to a function. This typically indicates a programming error.
+
+```csharp
+try
+{
+    // Passing null where a valid pointer is expected
+    Database.Open(null);
+}
+catch (WliteException ex) when (ex.Result == WliteResult.InvalidArgument)
+{
+    Console.WriteLine("Invalid argument passed to wlite");
+}
+```
+
+### OutOfMemory (3)
+
+The native library failed to allocate memory. This is rare in practice but can occur with very large result sets or under memory pressure.
+
+```csharp
+try
+{
+    using var db = Database.Open("app.db");
+    using var stmt = db.Prepare("SELECT * FROM huge_table");
+    // Processing might trigger memory allocation failure
+}
+catch (WliteException ex) when (ex.Result == WliteResult.OutOfMemory)
+{
+    Console.WriteLine("Out of memory");
+}
+```
+
+### IoError (4)
+
+An I/O error occurred. This can happen when the database file is on a network share, a removable drive is disconnected, or disk space is exhausted.
+
+```csharp
+try
+{
+    using var db = Database.Open("/mnt/network/share/app.db");
+}
+catch (WliteException ex) when (ex.Result == WliteResult.IoError)
+{
+    Console.WriteLine($"I/O error: {ex.Message}");
+}
+```
+
+### ParseError (5)
+
+A schema parse error occurred. The `.wlite` source file contains invalid syntax.
+
+```csharp
+try
+{
+    using var model = Model.Load("bad_syntax.wlite");
+}
+catch (WliteException ex) when (ex.Result == WliteResult.ParseError)
+{
+    Console.WriteLine($"Schema parse error: {ex.Message}");
+}
+```
+
+### ModelError (6)
+
+A schema model error occurred. The model references an invalid table or missing field.
+
+```csharp
+try
+{
+    using var model = Model.Load("invalid_model.wlite");
+    using var db = Database.Open("app.db");
+    db.Migrate(model);
+}
+catch (WliteException ex) when (ex.Result == WliteResult.ModelError)
+{
+    Console.WriteLine($"Model error: {ex.Message}");
+}
+```
+
+### SqliteError (7)
+
+The underlying SQLite engine returned an error. Check the exception message for details from SQLite.
+
+```csharp
+try
+{
+    using var db = Database.Open("app.db");
+    db.Execute("INVALID SQL STATEMENT");
+}
+catch (WliteException ex) when (ex.Result == WliteResult.SqliteError)
+{
+    Console.WriteLine($"SQLite error: {ex.Message}");
+}
+```
+
+### ConstraintError (8)
+
+A UNIQUE, CHECK, or FOREIGN KEY constraint was violated. This typically occurs during INSERT or UPDATE operations.
+
+```csharp
+try
+{
+    using var db = Database.Open("app.db");
+    using var stmt = db.Prepare("INSERT INTO users (email) VALUES (?)");
+    stmt.Bind(1, "duplicate@example.com");
+    stmt.Step();
+}
+catch (WliteException ex) when (ex.Result == WliteResult.ConstraintError)
+{
+    Console.WriteLine("Constraint violation: duplicate email");
+}
+```
+
+### NotFound (9)
+
+A requested table, column, or resource was not found.
 
 ```csharp
 try
@@ -110,70 +229,37 @@ catch (WliteException ex) when (ex.Result == WliteResult.NotFound)
 }
 ```
 
-### Memory (-3)
+### Busy (10)
 
-The native library failed to allocate memory. This is rare in practice but can occur with very large result sets or under memory pressure.
-
-```csharp
-try
-{
-    using var db = Database.Open("app.db");
-    using var stmt = db.Prepare("SELECT * FROM huge_table");
-    // Processing might trigger memory allocation failure
-}
-catch (WliteException ex) when (ex.Result == WliteResult.Memory)
-{
-    Console.WriteLine("Out of memory");
-}
-```
-
-### Io (-4)
-
-An I/O error occurred. This can happen when the database file is on a network share, a removable drive is disconnected, or disk space is exhausted.
-
-```csharp
-try
-{
-    using var db = Database.Open("/mnt/network/share/app.db");
-}
-catch (WliteException ex) when (ex.Result == WliteResult.Io)
-{
-    Console.WriteLine($"I/O error: {ex.Message}");
-}
-```
-
-### Corrupt (-5)
-
-The database or schema file is corrupted. This can indicate disk corruption, incomplete writes, or file tampering.
-
-```csharp
-try
-{
-    using var db = Database.Open("possibly_corrupted.db");
-}
-catch (WliteException ex) when (ex.Result == WliteResult.Corrupt)
-{
-    Console.WriteLine("Database appears corrupted");
-}
-```
-
-### Range (-6)
-
-A value is out of the valid range. This can occur with invalid column indices, parameter indices, or numeric values.
+The database is locked by another connection. This can happen when multiple processes or threads try to write simultaneously.
 
 ```csharp
 try
 {
     using var db = Database.Open("app.db");
-    using var stmt = db.Prepare("SELECT id FROM users");
-    stmt.Step();
-
-    // Column index 99 does not exist
-    var value = stmt.ColumnInt64(99);
+    // Another process is writing to the database
 }
-catch (WliteException ex) when (ex.Result == WliteResult.Range)
+catch (WliteException ex) when (ex.Result == WliteResult.Busy)
 {
-    Console.WriteLine("Column index out of range");
+    Console.WriteLine("Database is busy, try again later");
+}
+```
+
+### TransactionError (11)
+
+A transaction failed or is in an invalid state. This can occur when committing a transaction that has already been rolled back, or when operations fail within a transaction.
+
+```csharp
+try
+{
+    using var db = Database.Open("app.db");
+    using var tx = db.Begin();
+    tx.Rollback();
+    tx.Commit(); // Invalid: already rolled back
+}
+catch (WliteException ex) when (ex.Result == WliteResult.TransactionError)
+{
+    Console.WriteLine("Transaction error");
 }
 ```
 
@@ -225,13 +311,13 @@ void RobustOpen(string dbPath)
         Console.WriteLine("Database not found, creating new one");
         db = Database.Open(dbPath);
     }
-    catch (WliteException ex) when (ex.Result == WliteResult.Corrupt)
+    catch (WliteException ex) when (ex.Result == WliteResult.SqliteError)
     {
         Console.WriteLine("Database corrupted, attempting recovery");
         File.Delete(dbPath);
         db = Database.Open(dbPath);
     }
-    catch (WliteException ex) when (ex.Result == WliteResult.Io)
+    catch (WliteException ex) when (ex.Result == WliteResult.IoError)
     {
         Console.WriteLine("I/O error, check file permissions");
         throw;
@@ -729,7 +815,7 @@ class ProductionDatabase : IDisposable
             {
                 return Model.Load(path);
             }
-            catch (WliteException ex) when (ex.Result == WliteResult.Io && i < maxRetries - 1)
+            catch (WliteException ex) when (ex.Result == WliteResult.IoError && i < maxRetries - 1)
             {
                 Console.WriteLine($"Retry {i + 1}: {ex.Message}");
                 System.Threading.Thread.Sleep(100 * (i + 1));
@@ -748,7 +834,7 @@ class ProductionDatabase : IDisposable
                 return Database.Open(path);
             }
             catch (WliteException ex) when (
-                (ex.Result == WliteResult.Busy || ex.Result == WliteResult.Io)
+                (ex.Result == WliteResult.Busy || ex.Result == WliteResult.IoError)
                 && i < maxRetries - 1
             )
             {
@@ -797,7 +883,7 @@ class ProductionDatabase : IDisposable
             stmt.Step();
             return true;
         }
-        catch (WliteException ex) when (ex.Result == WliteResult.Range)
+        catch (WliteException ex) when (ex.Result == WliteResult.InvalidArgument)
         {
             Console.WriteLine("Invalid input data");
             return false;

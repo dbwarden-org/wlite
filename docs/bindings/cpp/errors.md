@@ -380,7 +380,7 @@ Models are immutable after loading. They can be shared across threads safely usi
 #include <thread>
 
 void thread_safe_example() {
-    auto model = std::make_shared<wlite::Model>(wlite::Model::open("app.wlite"));
+    auto model = std::make_shared<wlite::Model>(wlite::Model::load("app.wlite"));
 
     std::thread t1([model]() {
         auto db = wlite::Database::open("db1.db");

@@ -34,7 +34,7 @@ export LD_LIBRARY_PATH=/opt/wlite/lib:$LD_LIBRARY_PATH
 
 ### Python version
 
-The binding requires Python 3.8 or later. It uses only the standard library (ctypes, os, pathlib) so no additional Python packages are needed at runtime.
+The binding requires Python 3.10 or later. It uses only the standard library (ctypes, os, pathlib) so no additional Python packages are needed at runtime.
 
 You can check your Python version with:
 

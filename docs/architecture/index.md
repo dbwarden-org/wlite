@@ -106,14 +106,16 @@ Each binding exposes the same core operations:
 
 | Operation | C Function | Description |
 |-----------|------------|-------------|
-| Load model | `wl_schema_from_file()` | Parse a `.wlite` file into a `WlSchema` |
-| Open database | `wl_db_open()` | Open a SQLite database file |
-| Introspect | `wl_schema_from_db()` | Read the live database schema into a `WlSchema` |
-| Diff | `wl_diff()` | Compare two `WlSchema` instances |
-| Plan | `wl_plan()` | Convert a diff into ordered SQL statements |
-| Migrate | `wl_migrate()` | Execute a plan within a transaction |
-| Query | `wl_query()` | Run a SELECT with parameter binding |
-| Transaction | `wl_tx_begin()` / `wl_tx_commit()` / `wl_tx_rollback()` | Manual transaction control |
+| Load model | `wlite_model_load_file()` | Parse a `.wlite` file into a `wlite_model` |
+| Open database | `wlite_open()` | Open a SQLite database file |
+| Validate | `wlite_model_validate()` | Validate model structure |
+| Diff | `wlite_diff()` | Compare model against database schema |
+| Plan | `wlite_plan()` | Convert a diff into ordered SQL statements |
+| Migrate | `wlite_migrate()` | Execute migration within a transaction |
+| Query | `wlite_prepare()` / `wlite_step()` | Run a SELECT with parameter binding |
+| Transaction | `wlite_begin()` / `wlite_commit()` / `wlite_rollback()` | Manual transaction control |
+| Close | `wlite_close()` | Close database connection |
+| Free model | `wlite_model_free()` | Free model and all owned objects |
 
 The C API is documented in the header file `wlite.h`. The binding wrappers are intentionally thin: they translate between the host language's types and the C types, handle memory ownership, and nothing else.
 
@@ -245,7 +247,6 @@ wlite is the C rewrite of dbwarden. The architecture is the same: single source 
 
 ### What Stayed the Same
 
-- The `.wlite` model file format is a superset of the `.dbwarden` format
 - The diff algorithm is identical
 - The planner logic is identical, including table rebuilds and collapse behavior
 - The migration execution model is identical (transactional, checksum recorded)
@@ -362,16 +363,13 @@ wlite has three categories of tests: unit tests, integration tests, and binding 
 
 ### Unit Tests
 
-Unit tests exercise individual functions in isolation. Each module has a corresponding test file in `tests/`:
+Unit tests exercise individual functions in isolation. The test suite is built from three files in `tests/`:
 
-| Test File | Module Under Test |
-|-----------|-------------------|
-| `test_parser.c` | `parser.c` |
-| `test_diff.c` | `diff.c` |
-| `test_planner.c` | `planner.c` |
-| `test_migrate.c` | `migrate.c` |
-| `test_query.c` | `query.c` |
-| `test_introspect.c` | `introspect.c` |
+| Test File | Description |
+|-----------|-------------|
+| `test_wlite.c` | Core library unit tests covering parser, diff, planner, migrate, query, and introspect modules |
+| `test_edge_cases.c` | Edge case tests for boundary conditions, error paths, and unusual inputs |
+| `conformance.c` | Cross-language conformance tests verifying C API behavior matches bindings |
 
 Unit tests use a minimal test framework that is part of wlite itself (no external test dependencies). The framework provides `ASSERT`, `ASSERT_EQUAL`, and `ASSERT_STRING` macros. Tests return 0 on success and 1 on failure.
 

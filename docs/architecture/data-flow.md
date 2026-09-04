@@ -663,7 +663,6 @@ This example shows all five stages using the C API:
 int main(void) {
     wlite_model *model = NULL;
     wlite_db *db = NULL;
-    wlite_plan *plan = NULL;
     wlite_result rc;
 
     /* ==========================================
@@ -692,12 +691,14 @@ int main(void) {
 
     /* Print table details */
     for (size_t i = 0; i < wlite_model_table_count(model); i++) {
-        const wlite_table *table = wlite_model_table_at(model, i);
+        const wlite_table *table = wlite_model_table(model, "users");
+        if (!table) continue;
         printf("  Table: %s (%zu fields)\n",
                wlite_table_name(table),
                wlite_table_field_count(table));
         for (size_t j = 0; j < wlite_table_field_count(table); j++) {
             const wlite_field *field = wlite_table_field_at(table, j);
+            if (!field) continue;
             printf("    %s: type=%d nullable=%d pk=%d\n",
                    wlite_field_name(field),
                    wlite_field_type(field),
@@ -723,47 +724,26 @@ int main(void) {
      * Stage 3: Diff
      * Compare model against database
      * ========================================== */
-    rc = wlite_diff(db, model, &plan);
+    /* Diff is computed internally by wlite_migrate */
+
+    /* ==========================================
+     * Stage 4: Plan
+     * The plan is computed internally
+     * ========================================== */
+    printf("\nStage 3 & 4: diff and plan computed internally\n");
+
+    /* ==========================================
+     * Stage 5: Migrate
+     * Execute the plan
+     * ========================================== */
+    rc = wlite_migrate(db, model);
     if (rc != WLITE_OK) {
-        fprintf(stderr, "Diff error: %s\n", wlite_strerror(rc));
+        fprintf(stderr, "Migration failed: %s\n", wlite_strerror(rc));
         wlite_close(db);
         wlite_model_free(model);
         return 1;
     }
-
-    printf("\nStage 3 complete: diff computed\n");
-    printf("  Migration steps: %zu\n", wlite_plan_count(plan));
-
-    /* ==========================================
-     * Stage 4: Plan
-     * The plan is now available for inspection
-     * ========================================== */
-    printf("\nStage 4 complete: plan ready\n");
-
-    /* Preview the SQL (plan inspection) */
-    if (wlite_plan_count(plan) == 0) {
-        printf("  No changes needed.\n");
-    } else {
-        printf("  Plan has %zu SQL statements\n", wlite_plan_count(plan));
-    }
-
-    /* ==========================================
-     * Stage 5: Migrate
-     * Execute the plan (or use wlite_migrate for all-in-one)
-     * ========================================== */
-    if (wlite_plan_count(plan) > 0) {
-        rc = wlite_migrate(db, model);
-        if (rc != WLITE_OK) {
-            fprintf(stderr, "Migration failed: %s\n", wlite_strerror(rc));
-            wlite_plan_free(plan);
-            wlite_close(db);
-            wlite_model_free(model);
-            return 1;
-        }
-        printf("\nStage 5 complete: migration executed and committed\n");
-    } else {
-        printf("\nStage 5: nothing to migrate\n");
-    }
+    printf("\nStage 5 complete: migration executed and committed\n");
 
     /* ==========================================
      * Query the database
@@ -792,7 +772,6 @@ int main(void) {
     }
 
     /* Cleanup */
-    wlite_plan_free(plan);
     wlite_close(db);
     wlite_model_free(model);
 
@@ -822,11 +801,7 @@ Stage 1 complete: model loaded
 
 Stage 2 complete: database opened and introspected
 
-Stage 3 complete: diff computed
-  Migration steps: 1
-
-Stage 4 complete: plan ready
-  Plan has 1 SQL statements
+Stage 3 & 4: diff and plan computed internally
 
 Stage 5 complete: migration executed and committed
 
@@ -964,7 +939,7 @@ The following table summarizes all error cases across the pipeline:
 | Parse | Model validation | `WLITE_MODEL_ERROR` | Fix model structure |
 | Introspect | Database locked | `WLITE_BUSY` | Wait and retry |
 | Introspect | File not found | `WLITE_NOT_FOUND` | Check the database path |
-| Introspect | Corrupt database | `WLITE_CORRUPT` | Restore from backup |
+| Introspect | Corrupt database | `WLITE_SQLITE_ERROR` | Restore from backup |
 | Introspect | Permission denied | `WLITE_IO_ERROR` | Check file permissions |
 | Diff | Empty model | `WLITE_MODEL_ERROR` | Add tables to model |
 | Diff | Invalid FK references | `WLITE_MODEL_ERROR` | Fix references |

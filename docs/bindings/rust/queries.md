@@ -524,7 +524,7 @@ fn transfer_funds(db: &Database, from: i64, to: i64, amount: i64) -> wlite::Resu
 
     if balance < 0 {
         tx.rollback()?;
-        return Err(Error::Range);
+        return Err(Error::Error);
     }
 
     tx.commit()?;
