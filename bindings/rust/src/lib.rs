@@ -5,7 +5,7 @@ pub mod model;
 pub mod statement;
 
 pub use error::WliteError;
-pub use database::Database;
+pub use database::{Database, Transaction};
 pub use model::Model;
 pub use statement::Statement;
 

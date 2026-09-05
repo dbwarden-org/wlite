@@ -101,8 +101,10 @@ extern "C" {
     pub fn wlite_begin(db: *mut WliteDb, out: *mut *mut WliteTx) -> WliteResult;
     pub fn wlite_commit(tx: *mut WliteTx) -> WliteResult;
     pub fn wlite_rollback(tx: *mut WliteTx) -> WliteResult;
+    pub fn wlite_tx_free(tx: *mut WliteTx);
 
     pub fn wlite_diff(db: *mut WliteDb, model: *const WliteModel, out: *mut *mut WlitePlan) -> WliteResult;
+    pub fn wlite_migrate(db: *mut WliteDb, model: *const WliteModel) -> WliteResult;
     pub fn wlite_plan_count(plan: *const WlitePlan) -> usize;
     pub fn wl_plan_free(plan: *mut WlitePlan);
     pub fn wl_schema_hash(schema: *const WliteSchema) -> *mut c_char;

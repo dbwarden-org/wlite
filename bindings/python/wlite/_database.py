@@ -51,11 +51,7 @@ class Database:
         return rows
 
     def migrate(self, model):
-        from wlite._ffi import lib as _lib, check_result as _cr
-        plan_ptr = ctypes.c_void_p()
-        rc = _lib.wlite_diff(self._ptr, model._ptr, ctypes.byref(plan_ptr))
-        if rc != 0: raise WliteError(rc, "diff failed")
-        if plan_ptr: _lib.wl_plan_free(plan_ptr)
+        check_result(lib.wlite_migrate(self._ptr, model._ptr))
 
     def close(self):
         if self._ptr: lib.wlite_close(self._ptr); self._ptr = None

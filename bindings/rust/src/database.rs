@@ -1,7 +1,7 @@
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::path::Path;
 
-use crate::error::{check, WliteError};
+use crate::error::check;
 use crate::ffi;
 use crate::model::Model;
 use crate::statement::Statement;
@@ -44,13 +44,7 @@ impl Database {
     }
 
     pub fn migrate(&self, model: &Model) -> Result<()> {
-        let plan = unsafe { ffi::wlite_diff(self.ptr, model.as_ptr(), std::ptr::null_mut()) };
-        if plan == ffi::WLITE_OK {
-            // Apply the plan
-            check(plan)
-        } else {
-            Err(WliteError::from_result(plan))
-        }
+        check(unsafe { ffi::wlite_migrate(self.ptr, model.as_ptr()) })
     }
 
     pub fn diff(&self, model: &Model) -> Result<()> {
@@ -62,6 +56,12 @@ impl Database {
         Ok(())
     }
 
+    pub fn begin(&self) -> Result<Transaction> {
+        let mut tx_ptr = std::ptr::null_mut();
+        check(unsafe { ffi::wlite_begin(self.ptr, &mut tx_ptr) })?;
+        Ok(Transaction { ptr: tx_ptr })
+    }
+
     pub fn as_ptr(&self) -> *mut ffi::WliteDb {
         self.ptr
     }
@@ -70,5 +70,31 @@ impl Database {
 impl Drop for Database {
     fn drop(&mut self) {
         unsafe { ffi::wlite_close(self.ptr) };
+    }
+}
+
+pub struct Transaction {
+    ptr: *mut ffi::WliteTx,
+}
+
+impl Transaction {
+    pub fn commit(mut self) -> Result<()> {
+        let r = check(unsafe { ffi::wlite_commit(self.ptr) });
+        self.ptr = std::ptr::null_mut();
+        r
+    }
+
+    pub fn rollback(mut self) -> Result<()> {
+        let r = check(unsafe { ffi::wlite_rollback(self.ptr) });
+        self.ptr = std::ptr::null_mut();
+        r
+    }
+}
+
+impl Drop for Transaction {
+    fn drop(&mut self) {
+        if !self.ptr.is_null() {
+            unsafe { ffi::wlite_tx_free(self.ptr) };
+        }
     }
 }

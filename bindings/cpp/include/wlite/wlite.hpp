@@ -192,7 +192,7 @@ public:
     }
 
     void migrate(const Model& model) {
-        check(wlite_diff(ptr_, model.ptr(), nullptr));
+        check(wlite_migrate(ptr_, model.ptr()));
     }
 
     void diff(const Model& model) {

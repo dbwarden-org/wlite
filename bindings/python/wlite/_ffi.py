@@ -142,3 +142,5 @@ lib.wlite_diff.restype = ctypes.c_int
 lib.wlite_plan_count.argtypes = [ctypes.c_void_p]
 lib.wlite_plan_count.restype = ctypes.c_size_t
 lib.wl_plan_free.argtypes = [ctypes.c_void_p]
+lib.wlite_migrate.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+lib.wlite_migrate.restype = ctypes.c_int
